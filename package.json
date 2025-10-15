@@ -4,7 +4,7 @@
     "watch:css": "sass --watch ./app/assets/stylesheets/application.scss:./app/assets/builds/application.css --load-path=node_modules"
   },
   "dependencies": {
-    "bootstrap": "^5.3.6"
+    "bootstrap": "^5.3.8"
   },
   "devDependencies": {
     "sass": "^1.93.2"
