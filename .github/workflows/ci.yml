@@ -30,7 +30,7 @@ jobs:
           ruby-version: .ruby-version
           bundler-cache: true
       - name: Importmap audit (JS deps)
-        run: bundle exec rails importmap:audit
+        run: bin/importmap audit
 
   lint:
     runs-on: ubuntu-latest
@@ -47,7 +47,6 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-
     services:
       postgres:
         image: postgres:16
@@ -63,23 +62,41 @@ jobs:
 
     env:
       RAILS_ENV: test
-      # ← database.yml が ENV を優先する想定
       DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/dolcos_calc_test
 
     steps:
       - uses: actions/checkout@v4
+
       - name: Make bin scripts executable (Windows-friendly)
         run: git ls-files -z bin/* | xargs -0 chmod +x
+
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: .ruby-version
           bundler-cache: true
+
       - name: Install system deps for pg/psych
         run: |
           sudo apt-get update -y
           sudo apt-get install -y --no-install-recommends libpq-dev pkg-config libyaml-dev
+
+      # Node をセットアップ & npm 依存を入れる（bootstrap が必要）
+      - name: Set up Node (for npm/sass)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install npm deps
+        run: |
+          if [ -f package.json ]; then
+            npm ci || npm install
+          fi
+          mkdir -p app/assets/builds
+
       - name: Prepare DB
         run: bundle exec rails db:prepare
+
       - name: Run tests (Minitest)
         run: bundle exec rails test
-        # RSpec なら ↑ を: bundle exec rspec に
+
