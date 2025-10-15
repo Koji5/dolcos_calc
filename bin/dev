@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+set -e
+
+# gem の bin を PATH に通す（念のため）
+export PATH="/usr/local/bundle/bin:$PATH"
+
+# Foreman をフルパスで起動（PATH問題を回避）
+exec /usr/local/bundle/bin/foreman start -f Procfile.dev
