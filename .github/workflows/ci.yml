@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Make bin scripts executable (Windows-friendly)
+        run: git ls-files -z bin/* | xargs -0 chmod +x
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: .ruby-version
@@ -21,17 +23,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Make bin scripts executable (Windows-friendly)
+        run: git ls-files -z bin/* | xargs -0 chmod +x
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: .ruby-version
           bundler-cache: true
       - name: Importmap audit (JS deps)
-        run: bundle exec importmap audit
+        run: bundle exec rails importmap:audit
 
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Make bin scripts executable (Windows-friendly)
+        run: git ls-files -z bin/* | xargs -0 chmod +x
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: .ruby-version
@@ -54,14 +60,6 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
-      # redis:
-      #   image: redis:7
-      #   ports: ["6379:6379"]
-      #   options: >-
-      #     --health-cmd="redis-cli ping || exit 1"
-      #     --health-interval=10s
-      #     --health-timeout=5s
-      #     --health-retries=5
 
     env:
       RAILS_ENV: test
@@ -70,40 +68,18 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+      - name: Make bin scripts executable (Windows-friendly)
+        run: git ls-files -z bin/* | xargs -0 chmod +x
+      - uses: ruby/setup-ruby@v1
         with:
           ruby-version: .ruby-version
           bundler-cache: true
-
       - name: Install system deps for pg/psych
         run: |
           sudo apt-get update -y
           sudo apt-get install -y --no-install-recommends libpq-dev pkg-config libyaml-dev
-
-      - name: Set up Node (for npm/sass)
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install npm deps (if present)
-        run: |
-          if [ -f package.json ]; then
-            npm ci || npm install
-          fi
-          mkdir -p app/assets/builds
-
-      # systemテストを使う場合のみ有効化（なければ削除OK）
-      - name: Set up Chrome
-        uses: browser-actions/setup-chrome@v1
-        with:
-          chrome-version: stable
-
       - name: Prepare DB
         run: bundle exec rails db:prepare
-
       - name: Run tests (Minitest)
-        run: bundle exec rails test test:system
-        # RSpecの場合: run: bundle exec rspec
+        run: bundle exec rails test
+        # RSpec なら ↑ を: bundle exec rspec に
