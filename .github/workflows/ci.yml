@@ -97,7 +97,7 @@ jobs:
 
       # systemテストを使う場合のみ有効化（なければ削除OK）
       - name: Set up Chrome
-        uses: browser-actions/setup-chrome@v1
+        uses: browser-actions/setup-chrome@v2
         with:
           chrome-version: stable
 
