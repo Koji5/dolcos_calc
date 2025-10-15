@@ -93,6 +93,8 @@ jobs:
             npm ci || npm install
           fi
           mkdir -p app/assets/builds
+      - name: Make node_modules visible to Dart Sass
+        run: echo "SASS_PATH=node_modules" >> $GITHUB_ENV
 
       - name: Prepare DB
         run: bundle exec rails db:prepare

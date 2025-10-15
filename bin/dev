@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 set -e
-
+export SASS_PATH=node_modules:$SASS_PATH
 # gem の bin を PATH に通す（念のため）
 export PATH="/usr/local/bundle/bin:$PATH"
 
