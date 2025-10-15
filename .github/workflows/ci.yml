@@ -15,7 +15,7 @@ jobs:
           ruby-version: .ruby-version
           bundler-cache: true
       - name: Brakeman (Rails security scan)
-        run: bin/brakeman --no-pager
+        run: bundle exec brakeman --no-pager
 
   scan_js:
     runs-on: ubuntu-latest
@@ -26,7 +26,7 @@ jobs:
           ruby-version: .ruby-version
           bundler-cache: true
       - name: Importmap audit (JS deps)
-        run: bin/importmap audit
+        run: bundle exec importmap audit
 
   lint:
     runs-on: ubuntu-latest
@@ -37,7 +37,7 @@ jobs:
           ruby-version: .ruby-version
           bundler-cache: true
       - name: Rubocop
-        run: bin/rubocop -f github
+        run: bundle exec rubocop -f github
 
   test:
     runs-on: ubuntu-latest
@@ -102,8 +102,8 @@ jobs:
           chrome-version: stable
 
       - name: Prepare DB
-        run: bin/rails db:prepare
+        run: bundle exec rails db:prepare
 
       - name: Run tests (Minitest)
-        run: bin/rails test test:system
+        run: bundle exec rails test test:system
         # RSpecの場合: run: bundle exec rspec
