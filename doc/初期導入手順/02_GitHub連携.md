@@ -1,5 +1,5 @@
 # GitHub とつなぐ最短手順
-Windows（PowerShell）前提で、HTTPS と SSH の2パターンを用意しました。
+Windows（PowerShell）・GitHub Desktop前提。
 
 ---
 
