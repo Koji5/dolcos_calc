@@ -43,8 +43,9 @@ cd C:\dev\dolcos_calc
 
 ```powershell
 git init -b main
-#warning: re-init: ...のメッセージが出た場合はすでにmainになっているので、無視しても問題なし
+#warning: re-init: ...のメッセージが出た場合は、すでにmainになっているので、無視しても問題なし
 git add .
+#warning: in the working copy of ...のメッセージが出た場合は、次のコミット/チェックアウトで改行コードLFに。無視しても問題なし
 git commit -m "chore: bootstrap Rails 8 + Docker + Postgres dev env"
 ```
 
