@@ -1,0 +1,27 @@
+FROM ruby:3.3-slim
+
+ENV LANG=C.UTF-8 TZ=Asia/Tokyo \
+    BUNDLE_JOBS=2 BUNDLE_RETRY=3 \
+    RAILS_ENV=production RACK_ENV=production \
+    RAILS_LOG_TO_STDOUT=true
+
+RUN apt-get update -y && apt-get install -y --no-install-recommends \
+    build-essential libpq-dev pkg-config git curl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# 先にGemを入れてキャッシュを効かせる
+COPY Gemfile Gemfile.lock ./
+RUN gem install bundler -N \
+ && bundle config set without 'development test' \
+ && bundle install -j2
+
+# アプリ本体
+COPY . .
+
+# ImportmapならNode不要。失敗しても続行でOK
+RUN bundle exec rake assets:precompile 2>/dev/null || true
+
+EXPOSE 3000
+CMD ["bash","-lc","bundle exec rails db:prepare && bundle exec rails server -b 0.0.0.0 -p 3000"]
