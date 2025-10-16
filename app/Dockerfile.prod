@@ -8,6 +8,7 @@ ENV LANG=C.UTF-8 TZ=Asia/Tokyo \
 RUN apt-get update -y && apt-get install -y --no-install-recommends \
     build-essential libpq-dev pkg-config git curl ca-certificates \
     libyaml-dev libssl-dev zlib1g-dev \
+    nodejs npm \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -19,11 +20,16 @@ RUN gem install bundler -N \
  && bundle config set force_ruby_platform true \
  && bundle install -j2
 
+# ← Node 依存（package.json）があるなら先に入れてキャッシュを効かせる
+#    * package-lock.json があるなら一緒にCOPYして npm ci を使うのがベスト
+COPY package.json package-lock.json* ./
+RUN test -f package.json && (npm ci || npm install) || true
+
 # アプリ本体
 COPY . .
 
-# ImportmapならNode不要。失敗しても続行でOK
-RUN bundle exec rake assets:precompile 2>/dev/null || true
+# ← ここで本番アセットを確実に作る（失敗を握りつぶさない）
+RUN bundle exec rails assets:precompile
 
 EXPOSE 3000
 CMD ["bash","-lc","bundle exec rails db:prepare && bundle exec rails server -b 0.0.0.0 -p 3000"]
