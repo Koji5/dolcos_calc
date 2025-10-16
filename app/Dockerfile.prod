@@ -27,6 +27,9 @@ RUN test -f package.json && (npm ci || npm install) || true
 
 RUN npm install --no-audit --no-fund bootstrap@5 @popperjs/core
 
+# node_modules を Sass のロードパスに通す
+ENV SASS_PATH=node_modules
+
 # アプリ本体
 COPY . .
 
