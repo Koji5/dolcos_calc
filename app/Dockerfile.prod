@@ -25,6 +25,8 @@ RUN gem install bundler -N \
 COPY package.json package-lock.json* ./
 RUN test -f package.json && (npm ci || npm install) || true
 
+RUN npm install --no-audit --no-fund bootstrap@5 @popperjs/core
+
 # アプリ本体
 COPY . .
 
