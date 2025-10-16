@@ -1,0 +1,67 @@
+<div class="container py-5">
+  <div class="row align-items-center g-5">
+    <div class="col-12 col-lg-6">
+      <h1 class="display-5 fw-bold mb-3">ドルコス計算機</h1>
+      <p class="lead text-secondary mb-4">
+        ドルコスト平均法による「複利・年利」をシミュレーションできる無料ツールです。
+        ログインすれば、入力条件を保存してあとから呼び出せます。
+      </p>
+
+      <div class="d-flex flex-wrap gap-2">
+        <%= link_to "サインアップ", sign_up_path, class: "btn btn-primary btn-lg px-4" %>
+        <%= link_to "ログイン",     login_path,   class: "btn btn-outline-secondary btn-lg px-4" %>
+        <%= link_to "ゲストとして利用", guest_mode_path, class: "btn btn-link btn-lg text-decoration-none" %>
+      </div>
+
+      <div class="mt-4 small text-muted">
+        ※ 現在はダミー遷移です。後日、認証・保存機能をつなぎ込みます。
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-6 text-center">
+      <div class="ratio ratio-16x9 rounded-4 overflow-hidden shadow-sm">
+        <%= image_tag "dolcos-hero.jpg",
+                      class: "w-100 h-100 object-fit-cover",
+                      alt: "ドルコスト平均法シミュレーションのイメージ" %>
+      </div>
+      <div class="form-text mt-2">
+        ストレージテスト用の画像（アセット）を1枚表示しています。
+      </div>
+    </div>
+  </div>
+
+  <hr class="my-5">
+
+  <div class="row g-4">
+    <div class="col-12 col-md-4">
+      <div class="card h-100 shadow-sm">
+        <div class="card-body">
+          <h2 class="h5 card-title mb-2">シンプル入力</h2>
+          <p class="card-text text-secondary">
+            積立額・積立頻度・想定利回り・期間などを入れるだけで、将来価値や実質年利を推定。
+          </p>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="card h-100 shadow-sm">
+        <div class="card-body">
+          <h2 class="h5 card-title mb-2">複利を考慮</h2>
+          <p class="card-text text-secondary">
+            複利効果を踏まえた試算で、積立の成長イメージを直感的に把握できます。
+          </p>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="card h-100 shadow-sm">
+        <div class="card-body">
+          <h2 class="h5 card-title mb-2">ログインで保存</h2>
+          <p class="card-text text-secondary">
+            ログインすれば入力条件を保存・呼び出し可能。検討パターンの比較にも便利。
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
