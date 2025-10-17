@@ -327,6 +327,9 @@ dolcos-calc
     volumes:
       db-data:
    ```
+
+`git pull origin main`を忘れずに！  
+
 ---
 
 ## 8. **ビルドと起動**
@@ -337,48 +340,236 @@ docker-compose -f docker-compose.prod.yml up -d
 docker-compose -f docker-compose.prod.yml logs -f app
 ```
 
-✅ `Listening on 0.0.0.0:3000` が出たら成功。
+✅ `Listening on 0.0.0.0:3000` が出たら成功。  
+✅ `http://<EC2のIP>:3000` → トップページ表示
 
 ---
 
-## 9. **ブラウザ確認**
+## 9. **ドメイン連携**
+  Route 53にAレコードを設定します。
+### **Step1  Elastic IP（固定IP）割り当て**
 
-* `http://<EC2のIP>:3000` → トップページ表示
+* ***① Elastic IPを新規作成する***
 
+  1. AWS コンソールにログイン
+  2. 上部メニューの「サービス」→ **EC2** を選択
+  3. 左メニューの「**ネットワーク＆セキュリティ**」→ **Elastic IP** をクリック
+  4. 「**Elastic IP アドレスの割り当て**」をクリック
+  5. 内容を確認して「**割り当て**」ボタンを押す  
+  → 新しい固定IP（例：`13.112.xxx.xxx`）が発行されます。
+
+* ***② Elastic IP を EC2 インスタンスに関連付ける***
+  1. 発行された Elastic IP の一覧で、チェックボックスを入れる
+  2. 「**アクション**」→「**Elastic IP アドレスを関連付け**」を選択
+  3. 「**リソースタイプ**」で「インスタンス」を選ぶ
+  4. 「インスタンス」欄から、あなたの EC2 インスタンスを選択
+  5. 「プライベートIPアドレス」は自動で補完されるので、そのまま「**関連付け**」ボタンを押す
+
+* ***③ 確認***
+  1. EC2 → 「インスタンス」画面を開く
+  2. 対象インスタンスをクリック
+  3. 下部の「詳細」タブで「**Elastic IP**」が表示されているか確認
+
+* ***④ 旧パブリックIPの扱い***
+  1. 旧パブリックIPは自動的に無効になります。  
+  1. 以後、**新しい Elastic IP**（例：`13.112.xxx.xxx`）が固定の公開アドレスになります。
+
+### **Step2 Aレコード設定**
+* **🪜 手順①：前提確認**
+
+  まず、次の3点を確認しておきましょう。
+
+  | 項目                | 内容                                                                                 |
+  | ----------------- | ---------------------------------------------------------------------------------- |
+  | ✅ ドメイン            | すでに取得済み（例：`example.com`）                                                           |
+  | ✅ EC2 のパブリックIP    | 例：`13.112.xxx.xxx`（Elastic IP なら固定）                                                |
+  | ✅ Route 53 ホストゾーン | ドメイン取得元が AWS Route 53 であれば自動で作成済み。外部（お名前.com等）の場合は、Route 53 側で「ホストゾーン」を新規作成する必要あり。 |
+
+* **🪜 手順②：Route 53 ホストゾーンを確認／作成**
+
+  1. AWS コンソール → **Route 53** → **ホストゾーン**
+  2. 「example.com」がリストにあるか確認
+    　→ なければ「ホストゾーンの作成」ボタンをクリック
+    　　- ドメイン名：`example.com`
+    　　- タイプ：**パブリックホストゾーン**
+
+  作成後、**ネームサーバ（NS）レコード**が表示されます。
+
+  > 💡 外部レジストラでドメインを取った場合
+  > ドメイン管理画面で **ネームサーバを Route53 の NS に変更** してください（反映まで数時間かかることがあります）。
+
+
+* **🪜 手順③：Aレコードの追加（EC2のIPを指定）**
+
+  1. Route 53 → 対象のホストゾーンを開く
+  2. 「レコードの作成」をクリック
+  3. 以下のように入力：
+
+    | 項目      | 入力例                                           |
+    | ------- | --------------------------------------------- |
+    | レコード名   | 空欄（＝ルートドメイン `example.com`）または `www`（必要なら両方作る） |
+    | レコードタイプ | **A – IPv4アドレス**                              |
+    | 値       | `13.112.xxx.xxx`（EC2のElastic IP）              |
+    | TTL     | 300（またはデフォルトのまま）                              |
+
+  > 💡 EC2のIPは必ず **Elastic IP（固定IP）** にしておきましょう。
+  > 再起動で変わる「動的パブリックIP」だと DNS が無効になります。
+
+* **🪜 手順④：動作確認**
+
+  ローカルPCから以下を実行：
+
+  ```bash
+  ping example.com
+  ```
+
+  または
+
+  ```bash
+  nslookup example.com
+  ```
+
+  結果にEC2のIP（例：13.112.xxx.xxx）が出ればOK。
+
+  その後、ブラウザで
+  👉 `http://example.com:3000`
+  を開いて、昨日のRails画面が表示されれば成功です。
 ---
+## 10. **HTTPS化**
 
-## 🔒 8. セキュリティ・メンテナンス
+次の3ステップで **HTTPS化（443番ポート対応）** を行います👇
+
+### **🧭 全体の流れ**
+   | ステップ                | 概要                                       | 実行場所                   |
+   | ------------------- | ---------------------------------------- | ---------------------- |
+   | **① nginx導入**       | 80番・443番を受けて、Railsコンテナ（3000番）にリバースプロキシする | EC2上（ホスト or nginxコンテナ） |
+   | **② certbotで証明書発行** | Let's Encrypt で無料SSL証明書を取得し、nginxに適用     | EC2上                   |
+   | **③ nginx.conf調整**  | 443番でSSL対応、HTTP(80)→HTTPSリダイレクト          | EC2上                   |
+  
+  
+1. **EC2にnginxを入れる**
+   ```bash
+   sudo dnf update -y
+   sudo dnf install -y nginx
+   sudo systemctl enable --now nginx
+   sudo systemctl status nginx
+   ```
+   `http://<EC2のIP>/` にnginxのデフォルトページが出ればOK。
+
+2. **nginxを「3000 → 逆プロキシ」化**
+
+   設定ファイルを作成（ドメイン名は置き換え）：
+
+   ```bash
+   sudo tee /etc/nginx/conf.d/dolcos-calc.conf >/dev/null <<'NGINX'
+   server {
+     listen 80;
+     server_name dolcos-calc.com www.dolcos-calc.com;
+
+     # 後でcertbotがこのserverブロックを利用して認証/書換する
+     location / {
+       proxy_pass http://127.0.0.1:3000;
+       proxy_set_header Host              $host;
+       proxy_set_header X-Real-IP         $remote_addr;
+       proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+       proxy_set_header X-Forwarded-Proto $scheme;
+       client_max_body_size 20m;
+     }
+   }
+   NGINX
+   ```
+
+   テスト＆反映：
+
+   ```bash
+   sudo nginx -t
+   sudo systemctl reload nginx
+   ```
+
+   > ✅ **Dockerのポート公開は127.0.0.1に限定**しておくと安全  
+   > `docker-compose.prod.yml` の `ports` を `["127.0.0.1:3000:3000"]` にしておくと、外部から3000直叩きされません（後述）。
+
+3. **certbot を導入（Let’s Encrypt）**
+
+   ```bash
+   sudo dnf install -y certbot python3-certbot-nginx
+   ```
+
+   証明書発行（wwwも使うなら両方指定。wwwが不要なら apex のみでOK）：
+
+   ```bash
+   # apexのみ
+   sudo certbot --nginx -d dolcos-calc.com
+   # apex+www（wwwはRoute 53でCNAMEをapexに向けておくと吉）
+   # sudo certbot --nginx -d dolcos-calc.com -d www.dolcos-calc.com
+   ```
+
+   ```bash
+   Saving debug log to /var/log/letsencrypt/letsencrypt.log Enter email address (used for urgent renewal and security notices) (Enter 'c' to cancel):
+   # Let’s Encrypt（＝Certbot）が初回のSSL証明書を発行する際、緊急連絡用のメールアドレスを聞いています。
+   # 通常はあなたが管理しているメールアドレス（例：sakamoto@example.com）を入力します。
+   Please read the Terms of Service at https://letsencrypt.org/documents/LE-SA-v1.4-April-2018.pdf. 
+   You must agree in order to register with the ACME server at https://acme-v02.api.letsencrypt.org/directory...
+   (Y)es/(N)o:
+   # Y を入力してEnter。
+   Would you be willing to share your email address with the Electronic Frontier Foundation (EFF) ... ?
+   (Y)es/(N)o:
+   # N（どちらでもOKですが、通常はN）。
+   ```
+   → certbotが自動で `listen 443 ssl;` のサーバーブロックと証明書パスを追記します。  
+   最後にこのようなメッセージが出れば成功です👇
+   ```bash
+   Congratulations! You have successfully enabled HTTPS on https://dolcos-calc.com
+   ```
+
+   動作確認：
+
+   * `https://dolcos-calc.com/` でトップが出る
+   * `http://dolcos-calc.com/` は自動でHTTPSへリダイレクトされる
+
+4. **`docker-compose.prod.yml` の編集**  
+   編集前：  
+   ```yaml
+        ports:
+          - "3000:3000"
+   ```
+   編集後：
+   ```yaml
+        ports:
+          - "127.0.0.1:3000:3000"
+   ```
+   EC2にて：
+   ```bash
+   git pull origin main
+   docker-compose -f docker-compose.prod.yml up -d
+   ```
+5. **3000番のインバウンドルールの削除**
+
+   #### 🔥 セキュリティグループ操作手順
+
+   1. AWSコンソール → **EC2 → セキュリティグループ**
+   2. 対象インスタンスに紐づく SG を開く
+   3. **「インバウンドルール」タブ → 編集**
+   4. 以下のルールを削除：  
+      ```
+      タイプ: カスタムTCP
+      ポート範囲: 3000
+      ソース: 0.0.0.0/0
+      ```
+   5. 保存（「ルールを保存」）
+
+   #### ✅ 削除後の動作確認
+
+   * 削除後、外部から：
+
+     ```bash
+     curl http://3.104.206.45:3000
+     # → タイムアウトまたは接続拒否 (OK)
+     ```
+
+   * そしてブラウザで：  
+     👉 `https://dolcos-calc.com/`
+## 11. **セキュリティ・メンテナンス**
 
 * `.env` に含まれる秘密値は外部に出さない（S3 / Parameter Storeなどで管理予定）
 * **SSHポート (22)** は “自分のIPだけ” 許可
-* 余裕が出たら：
-
-  * Nginx＋Let's Encrypt で **HTTPS化**
-  * `docker-compose.prod.yml` に `nginx` サービスを追加してポート80→3000リバースプロキシ
-
----
-
-# 🧾 **まとめ**
-
-| ステップ             | 内容                      | 状況        |
-| ---------------- | ----------------------- | --------- |
-| ① AWS環境構築        | EC2 + Route 53          | ✅ 完了      |
-| ② SSH接続・Docker準備 | docker, git, compose    | ✅ 完了      |
-| ③ スワップ設定         | 永続化済み                   | ✅ 完了      |
-| ④ ソース配置          | GitHubからclone           | ✅ 完了      |
-| ⑤ Docker設定       | prodファイル分離              | ✅ 完了      |
-| ⑥ ビルド＆起動         | 成功、Rails稼働              | ✅ 完了      |
-| ⑦ 静的配信・CSS適用     | dart-sass + bootstrap対応 | ✅ 完了      |
-| ⑧ ドメイン連携         | Route 53にAレコード設定        | ⚙️ 実施予定   |
-| ⑨ HTTPS化         | nginx + certbot構成       | 🔜 次のステップ |
-
----
-
-💡 **次にやると良いこと**
-
-1. Route 53で Aレコードを追加（`dolcos-calc.com` → EC2 IP）
-2. Nginxリバースプロキシを導入して、`http://dolcos-calc.com` → Rails3000
-3. certbot（Let’s Encrypt）で HTTPS 化
-4. CloudWatch Logs か EBS Snapshot を設定して運用安定化
-
----
