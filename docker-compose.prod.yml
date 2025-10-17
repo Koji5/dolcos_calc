@@ -25,7 +25,7 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     command: bash -lc "bundle exec rails db:migrate && bundle exec rails server -b 0.0.0.0 -p 3000"
     restart: unless-stopped
 
