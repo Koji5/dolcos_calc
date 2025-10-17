@@ -19,13 +19,18 @@ services:
   app:
     build:
       context: .
-      dockerfile: app/Dockerfile.prod   # ← ここ！
+      dockerfile: app/Dockerfile.prod
     env_file: .env                      # ← EC2 に作った .env を利用
     depends_on:
       db:
         condition: service_healthy
     ports:
       - "127.0.0.1:3000:3000"
+    environment:
+      RAILS_SERVE_STATIC_FILES: "1"
+      RAILS_LOG_TO_STDOUT: "1"
+      AWS_REGION: "ap-southeast-2"
+      AWS_S3_BUCKET: "dolcos-calc-prod-assets"
     command: bash -lc "bundle exec rails db:migrate && bundle exec rails server -b 0.0.0.0 -p 3000"
     restart: unless-stopped
 
