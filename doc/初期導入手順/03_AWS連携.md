@@ -178,9 +178,20 @@ dolcos-calc
 2. `git`, `docker`, `docker-compose` のインストール
 
    ```bash
+   # 1️⃣ 基本ツールの導入
    sudo dnf install -y git docker
+   # 2️⃣ Dockerを起動・自動起動
    sudo systemctl enable --now docker
+   # 3️⃣ ec2-user を docker グループに追加（sudo不要化）
    sudo usermod -aG docker ec2-user
+   # 4️⃣ Compose v2 バイナリを手動配置（AL2023標準パス）
+   sudo mkdir -p /usr/libexec/docker/cli-plugins/
+   VER=2.27.0    # ← 最新版に更新可
+   sudo curl -SL "https://github.com/docker/compose/releases/download/v${VER}/docker-compose-linux-$(uname -m)" -o /usr/libexec/docker/cli-plugins/docker-compose
+   sudo chmod +x /usr/libexec/docker/cli-plugins/docker-compose
+   # 5️⃣ 動作確認
+   docker --version
+   docker compose version
    exit  # ← 一度ログアウトして再ログイン（権限反映）
    ```
 3. 動作確認
@@ -569,7 +580,235 @@ docker-compose -f docker-compose.prod.yml logs -f app
 
    * そしてブラウザで：  
      👉 `https://dolcos-calc.com/`
-## 11. **セキュリティ・メンテナンス**
+
+## 11. **S3との連携**
+
+### ① S3バケットを作る
+
+1. サービス → **S3**
+2. 「バケットを作成」
+
+   * バケット名：例）`dolcos-calc-prod-assets`
+   * リージョン：EC2と同じ（例：`ap-northeast-1`）
+   * **パブリックアクセスはすべてブロックON（推奨）**
+   * バージョニングは任意（バックアップしたいならON）
+   * 作成
+
+### ② IAMでロール作成
+
+1. サービス → **IAM**
+2. 左メニューの「ロール」→「ロールを作成」
+3. ユースケース選択 → 「**EC2**」を選び「次へ」
+4. 「許可ポリシー」は未選択のまま「次へ」
+5. 「名前、確認、および作成」
+
+   * ロール名：`DolcosCalcRole`
+   * 説明：`Allow EC2 to access S3 bucket`
+   * 「ロールを作成」
+
+### ③ IAMでポリシー作成
+
+1. 左メニューから **「ポリシー」** をクリック
+2. 右上の **「ポリシーを作成」** ボタンをクリック  
+   → 新しい画面が開きます
+3. 「JSON」タブを選択して、以下を貼り付け → 「次へ」
+
+    ```json
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": [
+            "s3:ListBucket"
+          ],
+          "Resource": "arn:aws:s3:::dolcos-calc-prod-assets"
+        },
+        {
+          "Effect": "Allow",
+          "Action": [
+            "s3:GetObject",
+            "s3:PutObject",
+            "s3:DeleteObject",
+            "s3:PutObjectAcl"
+          ],
+          "Resource": "arn:aws:s3:::dolcos-calc-prod-assets/*"
+        }
+      ]
+    }
+    ```
+    `dolcos-calc-prod-assets`は、先ほどS3で作成したバケット名です。
+4. 「確認して作成」 → 「ポリシーの作成」
+
+   * ポリシー名：`DolcosCalcS3AccessPolicy`
+
+### ④ 作ったポリシーをロールに付ける
+
+1. 左メニュー → 「ロール」
+2. さっき作ったロール `DolcosCalcRole` をクリック
+3. 「**許可を追加**」ボタン → 「ポリシーをアタッチ」
+4. 検索欄に `DolcosCalcS3AccessPolicy` と入力
+5. チェックして「許可を追加」
+
+→ これでロールにS3アクセス権が付きました ✅
+
+## ⑤ EC2にロールをアタッチ
+
+1. サービス → **EC2**
+2. 対象インスタンスを選択
+3. 上部の「**アクション > セキュリティ > IAMロールを変更**」
+4. 作成したロール（例：`DolcosCalcRole`）を選択 → 「IMAロールの更新」
+
+### ⑥ EC2で確認
+
+   * SSHでEC2に入り、次を実行：
+
+     ```bash
+     TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+     echo "$TOKEN"   # 何か文字列が返ればOK（空なら失敗）
+     curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/iam/security-credentials/
+     # → ここでロール名（例：DolcosCalcRole）が1行で出ます
+     ROLE=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/iam/security-credentials/)
+     curl -s -H "X-aws-ec2-metadata-token: $TOKEN" "http://169.254.169.254/latest/meta-data/iam/security-credentials/$ROLE" | jq .
+     # → ここで資格情報JSONを確認
+     curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/iam/info
+     ```
+
+   * これでロール名と、`iam/security-credentials/` に DolcosCalcRole が見えていればOKです。  
+   * もうAWSアクセスキーは不要になります。
+
+## 12. **Active StorageをS3に向ける**
+
+### 1. `docker-compose.prod.yml` に`environment`を追記
+
+* `docker-compose.prod.yml` を以下のように書き換える
+
+   ```yaml
+   services:
+     db:
+       image: postgres:16
+       environment:
+         POSTGRES_USER: ${POSTGRES_USER}
+         POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+         POSTGRES_DB: ${POSTGRES_DB}
+       volumes:
+         - db-data:/var/lib/postgresql/data
+       healthcheck:
+         test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+         interval: 5s
+         timeout: 5s
+         retries: 20
+       restart: unless-stopped
+
+     app:
+       build:
+         context: .
+         dockerfile: app/Dockerfile.prod
+       env_file: .env                      # ← EC2 に作った .env を利用
+       depends_on:
+         db:
+           condition: service_healthy
+       ports:
+         - "127.0.0.1:3000:3000"
+       environment:
+         RAILS_SERVE_STATIC_FILES: "1"
+         RAILS_LOG_TO_STDOUT: "1"
+         AWS_REGION: "ap-southeast-2"              # 利用しているリージョン名
+         AWS_S3_BUCKET: "dolcos-calc-prod-assets"  # S3のバケット名
+       command: bash -lc "bundle exec rails db:migrate && bundle exec rails server -b 0.0.0.0 -p 3000"
+       restart: unless-stopped
+
+   volumes:
+     db-data:
+   ```
+### 2. Railsの設定
+* `config\storage.yml` を以下のように書き換える
+
+   ```yaml
+   test:
+     service: Disk
+     root: <%= Rails.root.join("tmp/storage") %>
+
+   local:
+     service: Disk
+     root: <%= Rails.root.join("storage") %>
+
+   amazon:
+     service: S3
+     region: <%= ENV["AWS_REGION"] %>
+     bucket: <%= ENV["AWS_S3_BUCKET"] %>
+   ```
+* `config\environments\production.rb` を以下のように書き換える
+
+   ```ruby
+   require "active_support/core_ext/integer/time"
+   Rails.application.configure do
+     #...(省略)...
+     config.active_storage.service = :amazon
+     #...(省略)...
+   end
+   ```
+### 3. Gem を追加
+* `Gemfile`に以下を追加する
+
+   ```ruby
+   gem "aws-sdk-s3", "~> 1.139"
+   gem "image_processing", "~> 1.12"  # （サムネイルや画像変換を使うなら推奨）
+   ```
+* ローカルで`Gemfile.lock`を更新する
+
+   ```bash
+   docker compose run --rm app bundle install
+   docker compose restart app
+   ```
+* ※コミット時に`Gemfile.lock`も含めること！
+
+### 4.EC2で確認
+* 起動・確認
+
+   ```bash
+   # 追加したGemを反映してイメージ再ビルド
+   docker compose -f docker-compose.prod.yml build --no-cache app
+   # コンテナ再起動
+   docker compose -f docker-compose.prod.yml up -d
+
+   # 起動確認（ログを覗く）
+   docker compose -f docker-compose.prod.yml logs --tail=200 app
+   # Active Storage が :amazon になっているか確認
+   docker compose -f docker-compose.prod.yml exec app rails r 'p Rails.application.config.active_storage.service'
+   # => :amazon が出ればOK
+   ```
+
+<br><br>
+# AWSの本番環境の安全性
+
+## **「IAM」 「ロール」 「インスタンスロール」 「S3連携」の関係**
+
+### 🧭 まず基本用語の整理
+
+| 用語                                      | 意味                                                                           |
+| --------------------------------------- | ---------------------------------------------------------------------------- |
+| **IAM（Identity and Access Management）** | AWSの「権限管理サービス」。誰がどのAWSリソース（S3やEC2など）にアクセスできるかを制御する仕組み。                       |
+| **IAMユーザー**                             | 特定の人（あなた自身や開発者）を表すアカウント。AWSコンソールにログインしたり、アクセスキーを発行できる。                       |
+| **IAMロール**                              | 「この権限でAWSの他のサービスを操作していいですよ」という“権限セット”。                                       |
+| **インスタンスロール**                           | EC2 に付ける **IAMロール** のこと。EC2 が自分自身として AWS の API（S3など）を叩けるようになる。つまり「EC2本人の権限」。 |
+
+
+### 🧩 なぜインスタンスロールが必要か？
+
+Rails（Active Storage）がS3へ画像をアップロードするとき、
+通常は **AWSのAPI** を使ってアクセスします。
+
+* APIを呼ぶには「誰が呼んでいるか（認証情報）」が必要
+* EC2が「自分自身の権限でアクセスできる」ようにするのが **インスタンスロール**
+
+✅ メリット
+
+* `.env` にアクセスキーを保存する必要がない（セキュア）
+* キーの流出リスクゼロ
+* 権限を中央管理できる
+
+## **セキュリティ・メンテナンス**
 
 * `.env` に含まれる秘密値は外部に出さない（S3 / Parameter Storeなどで管理予定）
 * **SSHポート (22)** は “自分のIPだけ” 許可
