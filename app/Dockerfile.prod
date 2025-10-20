@@ -34,14 +34,18 @@ ENV SASS_PATH=node_modules
 # アプリ本体
 COPY . .
 
+
 # ここで CSS ビルド（bootstrap-icons のコピーも行われる）
 # 失敗したら止める（存在チェックも追加）
 RUN npm run build:css \
  && test -f app/assets/builds/bootstrap-icons/bootstrap-icons.css \
  && test -f node_modules/bootstrap-icons/font/bootstrap-icons.css
 
-# ビルド時はダミーの SECRET_KEY_BASE を渡す（実行時は .env の本物を使用）
-RUN SECRET_KEY_BASE=dummy bundle bin/rails assets:precompile
+# precompile（BuildKit secret を読む）
+RUN --mount=type=secret,id=rails_master_key \
+    RAILS_MASTER_KEY="$(cat /run/secrets/rails_master_key)" \
+    SECRET_KEY_BASE=dummy \
+    bin/rails assets:precompile
 
 EXPOSE 3000
 CMD ["bash","-lc","bundle exec rails db:prepare && bundle exec rails server -b 0.0.0.0 -p 3000"]
