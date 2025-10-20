@@ -23,8 +23,8 @@ Rails.application.routes.draw do
   root "pages#home"
 
   # ひとまずダミー（後で実装する想定）
-#  get  "/sign_up", to: "pages#dummy", as: :sign_up
-#  get  "/login",   to: "pages#dummy", as: :login
+  # get  "/sign_up", to: "pages#dummy", as: :sign_up
+  # get  "/login",   to: "pages#dummy", as: :login
   get  "/guest",   to: "pages#dummy", as: :guest_mode
 
   if Rails.env.development?
