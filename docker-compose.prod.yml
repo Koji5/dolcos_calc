@@ -3,8 +3,7 @@ services:
     build:
       context: .
       dockerfile: app/Dockerfile.prod
-      secrets:
-        - rails_master_key
+
     env_file: .env                      # ← EC2 に作った .env を利用
     ports:
       - "127.0.0.1:3000:3000"
@@ -15,7 +14,3 @@ services:
       AWS_S3_BUCKET: "dolcos-calc-prod-assets"
     command: bash -lc "bundle exec rails db:migrate && bundle exec rails server -b 0.0.0.0 -p 3000"
     restart: unless-stopped
-
-secrets:
-  rails_master_key:
-    file: ./config/master.key
