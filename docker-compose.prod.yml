@@ -5,6 +5,8 @@ services:
     build:
       context: .
       dockerfile: app/Dockerfile.prod
+      secrets:
+        - rails_master_key
     env_file: .env                      # ← EC2 に作った .env を利用
     ports:
       - "127.0.0.1:3000:3000"
