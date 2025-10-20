@@ -8,6 +8,7 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     environment:
+      RAILS_MASTER_KEY: "${RAILS_MASTER_KEY}"
       RAILS_SERVE_STATIC_FILES: "1"
       RAILS_LOG_TO_STDOUT: "1"
       AWS_REGION: "ap-southeast-2"
