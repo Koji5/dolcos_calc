@@ -1,6 +1,5 @@
 # syntax=docker/dockerfile:1.7
 FROM public.ecr.aws/docker/library/ruby:3.3-slim
-#FROM ruby:3.3-slim
 
 ENV LANG=C.UTF-8 TZ=Asia/Tokyo \
     BUNDLE_JOBS=2 BUNDLE_RETRY=3 \
@@ -15,20 +14,19 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# ---- Ruby deps（キャッシュ用）----
+# 先にGemを入れてキャッシュを効かせる
 COPY Gemfile Gemfile.lock ./
 RUN gem install bundler -N \
- && bundle config set without 'development test' \
- && bundle config set force_ruby_platform true \
- && bundle install -j2
+&& bundle config set without 'development test' \
+&& bundle config set force_ruby_platform true \
+&& bundle install -j2
 
-# ---- Node deps（キャッシュ用）----
-# package-lock.json があれば npm ci、無ければ npm install
+# ← Node 依存（package.json）があるなら先に入れてキャッシュを効かせる
+#    * package-lock.json があるなら一緒にCOPYして npm ci を使うのがベスト
 COPY package.json package-lock.json* ./
-RUN --mount=type=cache,target=/root/.npm \
-    if [ -f package-lock.json ]; then npm ci; else npm install; fi \
- && npm ls bootstrap-icons \
- && test -f node_modules/bootstrap-icons/font/bootstrap-icons.css
+RUN test -f package.json && (npm ci || npm install) || true
+
+RUN npm install --no-audit --no-fund bootstrap@5 @popperjs/core bootstrap-icons@1
 
 # node_modules を Sass のロードパスに通す
 ENV SASS_PATH=node_modules
@@ -36,19 +34,8 @@ ENV SASS_PATH=node_modules
 # アプリ本体
 COPY . .
 
-
-# ここで CSS ビルド（bootstrap-icons のコピーも行われる）
-# 失敗したら止める（存在チェックも追加）
-RUN npm run build:css \
- && ls -la app/assets/builds/bootstrap-icons \
- && ls -la app/assets/builds/bootstrap-icons/fonts \
- && test -f app/assets/builds/bootstrap-icons/bootstrap-icons.css
-
-# precompile（BuildKit secret を読む）
-RUN --mount=type=secret,id=rails_master_key \
-    RAILS_MASTER_KEY="$(cat /run/secrets/rails_master_key)" \
-    SECRET_KEY_BASE=dummy \
-    bin/rails assets:precompile
+# ビルド時はダミーの SECRET_KEY_BASE を渡す（実行時は .env の本物を使用）
+RUN SECRET_KEY_BASE=dummy bundle exec rails assets:precompile
 
 EXPOSE 3000
 CMD ["bash","-lc","bundle exec rails db:prepare && bundle exec rails server -b 0.0.0.0 -p 3000"]
