@@ -24,6 +24,13 @@ Rails 8 + Hotwire（Turbo）／Importmap 構成のまま、Devise 本流のネ�
    docker compose exec app rails g devise:install
    ```
 
+* `.rubocop.yml` で`config/initializers/devise.rb`を除外
+   ```yaml
+   AllCops:
+     Exclude:
+       - 'config/initializers/devise.rb'
+   ```
+
 * 生成された `config/initializers/devise.rb` に **Turbo 互換** を追加（重要）：
 
    ```ruby
@@ -279,6 +286,51 @@ Rails 8 + Hotwire（Turbo）／Importmap 構成のまま、Devise 本流のネ�
 
 * http://localhost:3000/letter_opener に確認メールが一覧表示され、リンクをクリックすると confirmed_at が埋まります。
 ---
+
+### 9) Minitest対策
+
+`confirmable` を入れているので、**テストでは「確認済みユーザーでログイン」**してから `get dashboard_show_url` を叩く。
+* `test/fixtures/users.yml` を作り、固有の email を入れる
+
+   ```yaml
+   one:
+     email: one@example.com
+     encrypted_password: <%= Devise::Encryptor.digest(User, "Passw0rd!") %>
+     confirmed_at: <%= Time.current %>
+
+   two:
+     email: two@example.com
+     encrypted_password: <%= Devise::Encryptor.digest(User, "Passw0rd!") %>
+     confirmed_at: <%= Time.current %>
+   ```
+
+* `test/test_helper.rb`
+
+   ```rb
+   # IntegrationTest で Devise のログインヘルパを使えるように
+   class ActionDispatch::IntegrationTest
+     include Devise::Test::IntegrationHelpers
+   end
+   ```
+
+* テストを「確認済みユーザーで sign_in」に修正
+   `test/controllers/dashboard_controller_test.rb`
+
+   ```rb
+   require "test_helper"
+
+   class DashboardControllerTest < ActionDispatch::IntegrationTest
+     setup do
+       @user = users(:one)
+     end
+
+     test "should get show when signed in" do
+       sign_in @user
+       get dashboard_show_url
+       assert_response :success
+     end
+   end
+   ```
 
 ## これでできること
 

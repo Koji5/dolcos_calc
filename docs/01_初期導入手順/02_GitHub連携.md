@@ -186,6 +186,13 @@ jobs:
             npm ci || npm install
           fi
           mkdir -p app/assets/builds
+
+      - name: Build CSS (bootstrap & icons)
+        run: |
+          if [ -f package.json ]; then
+            npm run build:css --if-present
+          fi
+
       - name: Make node_modules visible to Dart Sass
         run: echo "SASS_PATH=node_modules" >> $GITHUB_ENV
 
