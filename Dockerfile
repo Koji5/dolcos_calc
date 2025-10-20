@@ -1,5 +1,6 @@
 # アプリ用（Ruby 3.3 / Node 18 / npm 同梱）
-FROM ruby:3.3-slim
+FROM public.ecr.aws/docker/library/ruby:3.3-slim
+#FROM ruby:3.3-slim
 
 ENV LANG=C.UTF-8 TZ=Asia/Tokyo \
     BUNDLE_PATH=/usr/local/bundle \
