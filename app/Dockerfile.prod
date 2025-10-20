@@ -26,7 +26,9 @@ RUN gem install bundler -N \
 # package-lock.json があれば npm ci、無ければ npm install
 COPY package.json package-lock.json* ./
 RUN --mount=type=cache,target=/root/.npm \
-    if [ -f package-lock.json ]; then npm ci; else npm install; fi
+    if [ -f package-lock.json ]; then npm ci; else npm install; fi \
+ && npm ls bootstrap-icons \
+ && test -f node_modules/bootstrap-icons/font/bootstrap-icons.css
 
 # node_modules を Sass のロードパスに通す
 ENV SASS_PATH=node_modules
@@ -38,8 +40,9 @@ COPY . .
 # ここで CSS ビルド（bootstrap-icons のコピーも行われる）
 # 失敗したら止める（存在チェックも追加）
 RUN npm run build:css \
- && test -f app/assets/builds/bootstrap-icons/bootstrap-icons.css \
- && test -f node_modules/bootstrap-icons/font/bootstrap-icons.css
+ && ls -la app/assets/builds/bootstrap-icons \
+ && ls -la app/assets/builds/bootstrap-icons/fonts \
+ && test -f app/assets/builds/bootstrap-icons/bootstrap-icons.css
 
 # precompile（BuildKit secret を読む）
 RUN --mount=type=secret,id=rails_master_key \
