@@ -19,6 +19,8 @@ test:
 
 production:
   <<: *default
-  url: <%= ENV.fetch("DATABASE_URL") {
-          "postgres://#{ENV.fetch('POSTGRES_USER','postgres')}:#{ENV.fetch('POSTGRES_PASSWORD','postgres')}@db:5432/#{ENV.fetch('POSTGRES_DB','dolcos_calc_production')}"
-        } %>
+  # 本番はRDSのみに固定。フォールバック無しで fail-fast
+  url: <%= ENV.fetch("DATABASE_URL") %>
+  # rds.force_ssl=1 を有効にする場合の書き方（どちらか一方）
+  # variables:
+  #   sslmode: "require"
