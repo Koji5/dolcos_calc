@@ -18,4 +18,4 @@ services:
 
 secrets:
   rails_master_key:
-    file: ./config/credentials/production.key
+    file: ./config/master.key
