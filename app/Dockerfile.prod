@@ -34,15 +34,15 @@ RUN test -f package.json && (npm ci || npm install) || true
 
 #RUN mkdir -p app/assets/fonts/bootstrap-icons \
 # && cp -f node_modules/bootstrap-icons/font/fonts/* app/assets/fonts/bootstrap-icons/
-# CSSをビルドして、bootstrap-icons の CSS/フォントを builds 配下へコピー
-RUN npm run build:css
-
 
 # node_modules を Sass のロードパスに通す
 ENV SASS_PATH=node_modules
 
 # アプリ本体
 COPY . .
+
+# CSSをビルドして、bootstrap-icons の CSS/フォントを builds 配下へコピー
+RUN npm run build:css
 
 # ビルド時はダミーの SECRET_KEY_BASE を渡す（実行時は .env の本物を使用）
 RUN --mount=type=secret,id=rails_master_key \
