@@ -38,8 +38,11 @@ ENV SASS_PATH=node_modules
 COPY . .
 
 # ビルド時はダミーの SECRET_KEY_BASE を渡す（実行時は .env の本物を使用）
-ARG DATABASE_URL
-RUN SECRET_KEY_BASE=dummy bundle exec rails assets:precompile
+# ARG DATABASE_URL
+RUN --mount=type=secret,id=rails_master_key \
+    RAILS_MASTER_KEY="$(cat /run/secrets/rails_master_key)" \
+    SECRET_KEY_BASE=dummy \
+    bundle exec rails assets:precompile
 
 EXPOSE 3000
 CMD ["bash","-lc","bundle exec rails db:prepare && bundle exec rails server -b 0.0.0.0 -p 3000"]
