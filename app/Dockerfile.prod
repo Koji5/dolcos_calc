@@ -50,9 +50,10 @@ COPY . .
 RUN --mount=type=secret,id=rails_master_key \
     --mount=type=secret,id=db_url \
     sh -lc 'set -eu; \
-      RAILS_MASTER_KEY=$(tr -d "\r\n" </run/secrets/rails_master_key); \
-      DATABASE_URL=$(tr -d "\r\n" </run/secrets/db_url); \
-      export RAILS_MASTER_KEY SECRET_KEY_BASE= dummy DATABASE_URL; \
+      RAILS_MASTER_KEY="$(tr -d "\r\n" </run/secrets/rails_master_key)"; \
+      DATABASE_URL="$(tr -d "\r\n" </run/secrets/db_url)"; \
+      export RAILS_MASTER_KEY DATABASE_URL; \
+      export SECRET_KEY_BASE=dummy; \
       bundle exec rails assets:precompile'
 
 EXPOSE 3000
