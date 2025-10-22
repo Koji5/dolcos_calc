@@ -30,11 +30,6 @@ RUN gem install bundler -N \
 COPY package.json package-lock.json* ./
 RUN test -f package.json && (npm ci || npm install) || true
 
-#RUN npm install --no-audit --no-fund bootstrap@5 @popperjs/core bootstrap-icons@1
-
-#RUN mkdir -p app/assets/fonts/bootstrap-icons \
-# && cp -f node_modules/bootstrap-icons/font/fonts/* app/assets/fonts/bootstrap-icons/
-
 # node_modules を Sass のロードパスに通す
 ENV SASS_PATH=node_modules
 
