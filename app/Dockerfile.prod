@@ -49,11 +49,11 @@ COPY . .
 # ビルド時はダミーの SECRET_KEY_BASE を渡す（実行時は .env の本物を使用）
 RUN --mount=type=secret,id=rails_master_key \
     --mount=type=secret,id=db_url \
-    bash -lc 'set -euo pipefail; \
-      export RAILS_MASTER_KEY="$(cat /run/secrets/rails_master_key)"; \
-      export SECRET_KEY_BASE=dummy; \
-      export DATABASE_URL="$(cat /run/secrets/db_url)"; \
-      bundle exec rails assets:precompile
+    sh -lc 'set -eu; \
+      RAILS_MASTER_KEY=$(tr -d "\r\n" </run/secrets/rails_master_key); \
+      DATABASE_URL=$(tr -d "\r\n" </run/secrets/db_url); \
+      export RAILS_MASTER_KEY SECRET_KEY_BASE= dummy DATABASE_URL; \
+      bundle exec rails assets:precompile'
 
 EXPOSE 3000
 CMD ["bash","-lc","bundle exec rails db:prepare && bundle exec rails server -b 0.0.0.0 -p 3000"]
