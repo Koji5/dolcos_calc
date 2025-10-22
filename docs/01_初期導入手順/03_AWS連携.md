@@ -221,7 +221,119 @@ dolcos-calc
 
 ---
 
-## 6. **アプリの配置**
+## 6. **Docker設定**
+
+本番用に設定ファイルを作成する。
+
+1. **`Dockerfile.prod`** を作成（Rails + Node + Sass + Bootstrap対応）  
+
+   `app\Dockerfile.prod`
+   ```dockerfile
+   # syntax=docker/dockerfile:1.7
+   FROM public.ecr.aws/docker/library/ruby:3.3-slim
+
+   ENV LANG=C.UTF-8 TZ=Asia/Tokyo \
+       BUNDLE_JOBS=2 BUNDLE_RETRY=3 \
+       RAILS_ENV=production RACK_ENV=production \
+       RAILS_LOG_TO_STDOUT=true
+
+   RUN --mount=type=cache,target=/var/cache/apt \
+       --mount=type=cache,target=/var/lib/apt/lists \
+          apt-get update -y \
+    && apt-get install -y --no-install-recommends \
+         build-essential libpq-dev pkg-config git curl ca-certificates \
+         libyaml-dev libssl-dev zlib1g-dev \
+         nodejs npm \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/* /tmp/*
+
+   WORKDIR /app
+
+   # 先にGemを入れてキャッシュを効かせる
+   COPY Gemfile Gemfile.lock ./
+   RUN gem install bundler -N \
+   && bundle config set without 'development test' \
+   && bundle config set force_ruby_platform true \
+   && bundle install -j2
+
+   # ← Node 依存（package.json）があるなら先に入れてキャッシュを効かせる
+   #    * package-lock.json があるなら一緒にCOPYして npm ci を使うのがベスト
+   COPY package.json package-lock.json* ./
+   RUN test -f package.json && (npm ci || npm install) || true
+
+   # node_modules を Sass のロードパスに通す
+   ENV SASS_PATH=node_modules
+
+   # アプリ本体
+   COPY . .
+
+   # CSSをビルドして、bootstrap-icons の CSS/フォントを builds 配下へコピー
+   RUN npm run build:css
+
+   # ビルド時はダミーの SECRET_KEY_BASE を渡す（実行時は .env の本物を使用）
+   RUN --mount=type=secret,id=rails_master_key \
+       --mount=type=secret,id=db_url \
+       sh -lc 'set -eu; \
+         RAILS_MASTER_KEY="$(tr -d "\r\n" </run/secrets/rails_master_key)"; \
+         DATABASE_URL=postgres://dummy:dummy@localhost:5432/dummy; \
+         export RAILS_MASTER_KEY DATABASE_URL; \
+         export SECRET_KEY_BASE=dummy; \
+         bundle exec rails assets:precompile'
+
+   EXPOSE 3000
+   CMD ["bash","-lc","bundle exec rails db:prepare && bundle exec rails server -b 0.0.0.0 -p 3000"]
+   ```
+2. **`docker-compose.prod.yml`** を作成
+
+   * `app`（Rails）
+   * `db`（PostgreSQL）→ のちにS3に連携するとき削除する  
+
+    `docker-compose.prod.yml`
+   ```yaml
+    services:
+      db:
+        image: postgres:16
+        environment:
+          POSTGRES_USER: ${POSTGRES_USER:-}
+          POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+          POSTGRES_DB: ${POSTGRES_DB:-}
+        volumes:
+          - db-data:/var/lib/postgresql/data
+        healthcheck:
+          test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+          interval: 5s
+          timeout: 5s
+          retries: 20
+        restart: unless-stopped
+
+      app:
+        build:
+          context: .
+          dockerfile: app/Dockerfile.prod
+          secrets:
+            - rails_master_key
+        env_file: .env                      # ← EC2 に作った .env を利用
+        depends_on:
+          db:
+            condition: service_healthy
+        ports:
+          - "127.0.0.1:3000:3000"
+        command: bash -lc "bundle exec rails db:migrate && bundle exec rails server -b 0.0.0.0 -p 3000"
+        restart: unless-stopped
+
+    secrets:
+      rails_master_key:
+        file: ./config/credentials/production.key
+
+    volumes:
+      db-data:
+   ```
+
+コミットを忘れずに！  
+
+---
+
+## 7. **アプリの配置**
 
 1. リポジトリを clone
 
@@ -240,113 +352,38 @@ dolcos-calc
    POSTGRES_USER=postgres
    POSTGRES_PASSWORD=password
    POSTGRES_DB=dolcos_production
-   SECRET_KEY_BASE=$(openssl rand -hex 64)<長いhex>
+   SECRET_KEY_BASE=$(openssl rand -hex 64)
    DATABASE_URL=postgres://postgres:password@db:5432/dolcos_production
    RAILS_SERVE_STATIC_FILES=true
    EOF
    ```
 
----
+3. `credentials` を生成
 
-## 7. **Docker設定**
+   ```bash
+   # production.key を手動生成
+   mkdir -p config/credentials
+   umask 177
+   printf "%s" "$(openssl rand -hex 16)" > config/credentials/production.key
+   chmod 600 config/credentials/production.key
+   ## 32 と出ればOK
+   wc -c config/credentials/production.key
 
-本番用に設定ファイルを作成する。
-
-1. **`Dockerfile.prod`** を作成（Rails + Node + Sass + Bootstrap対応）  
-
-   `app\Dockerfile.prod`
-   ```dockerfile
-    FROM ruby:3.3-slim
-
-    ENV LANG=C.UTF-8 TZ=Asia/Tokyo \
-        BUNDLE_JOBS=2 BUNDLE_RETRY=3 \
-        RAILS_ENV=production RACK_ENV=production \
-        RAILS_LOG_TO_STDOUT=true
-
-    RUN apt-get update -y && apt-get install -y --no-install-recommends \
-        build-essential libpq-dev pkg-config git curl ca-certificates \
-        libyaml-dev libssl-dev zlib1g-dev \
-        nodejs npm \
-      && rm -rf /var/lib/apt/lists/*
-
-    WORKDIR /app
-
-    # 先にGemを入れてキャッシュを効かせる
-    COPY Gemfile Gemfile.lock ./
-    RUN gem install bundler -N \
-    && bundle config set without 'development test' \
-    && bundle config set force_ruby_platform true \
-    && bundle install -j2
-
-    # ← Node 依存（package.json）があるなら先に入れてキャッシュを効かせる
-    #    * package-lock.json があるなら一緒にCOPYして npm ci を使うのがベスト
-    COPY package.json package-lock.json* ./
-    RUN test -f package.json && (npm ci || npm install) || true
-
-    RUN npm install --no-audit --no-fund bootstrap@5 @popperjs/core
-
-    # node_modules を Sass のロードパスに通す
-    ENV SASS_PATH=node_modules
-
-    # アプリ本体
-    COPY . .
-
-    # ビルド時はダミーの SECRET_KEY_BASE を渡す（実行時は .env の本物を使用）
-    RUN SECRET_KEY_BASE=dummy bundle exec rails assets:precompile
-
-    EXPOSE 3000
-    CMD ["bash","-lc","bundle exec rails db:prepare && bundle exec rails server -b 0.0.0.0 -p 3000"]
+   # その鍵で production.yml.enc を新規作成
+   ## ホストで環境変数に読み込み、exec で渡す
+   RAILS_MASTER_KEY=$(tr -d '\n' < config/credentials/production.key)
+   docker compose -f docker-compose.prod.yml exec -e RAILS_MASTER_KEY="$RAILS_MASTER_KEY" -e EDITOR=true app bash -lc 'bundle exec rails credentials:edit --environment production'
+   ## コンテナ → ホストへ .enc をコピー
+   mkdir -p ./config/credentials
+   docker compose -f docker-compose.prod.yml cp app:/app/config/credentials/production.yml.enc ./config/credentials/production.yml.enc
    ```
-2. **`docker-compose.prod.yml`** を作成
-
-   * `app`（Rails）
-   * `db`（PostgreSQL）  
-
-    `docker-compose.prod.yml`
-   ```yaml
-    version: "3.9"
-
-    services:
-      db:
-        image: postgres:16
-        environment:
-          POSTGRES_USER: ${POSTGRES_USER}
-          POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-          POSTGRES_DB: ${POSTGRES_DB}
-        volumes:
-          - db-data:/var/lib/postgresql/data
-        healthcheck:
-          test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
-          interval: 5s
-          timeout: 5s
-          retries: 20
-        restart: unless-stopped
-
-      app:
-        build:
-          context: .
-          dockerfile: app/Dockerfile.prod
-        env_file: .env                      # ← EC2 に作った .env を利用
-        depends_on:
-          db:
-            condition: service_healthy
-        ports:
-          - "3000:3000"
-        command: bash -lc "bundle exec rails db:migrate && bundle exec rails server -b 0.0.0.0 -p 3000"
-        restart: unless-stopped
-
-    volumes:
-      db-data:
-   ```
-
-`git pull origin main`を忘れずに！  
 
 ---
 
 ## 8. **ビルドと起動**
 
 ```bash
-docker-compose -f docker-compose.prod.yml build --no-cache --progress=plain
+DOCKER_BUILDKIT=1 docker compose -f docker-compose.prod.yml build --no-cache app
 docker-compose -f docker-compose.prod.yml up -d
 docker-compose -f docker-compose.prod.yml logs -f app
 ```
@@ -538,23 +575,7 @@ docker-compose -f docker-compose.prod.yml logs -f app
    * `https://dolcos-calc.com/` でトップが出る
    * `http://dolcos-calc.com/` は自動でHTTPSへリダイレクトされる
 
-4. **`docker-compose.prod.yml` の編集**  
-   編集前：  
-   ```yaml
-        ports:
-          - "3000:3000"
-   ```
-   編集後：
-   ```yaml
-        ports:
-          - "127.0.0.1:3000:3000"
-   ```
-   EC2にて：
-   ```bash
-   git pull origin main
-   docker-compose -f docker-compose.prod.yml up -d
-   ```
-5. **3000番のインバウンドルールの削除**
+4. **3000番のインバウンドルールの削除**
 
    #### 🔥 セキュリティグループ操作手順
 
@@ -704,6 +725,8 @@ docker-compose -f docker-compose.prod.yml logs -f app
        build:
          context: .
          dockerfile: app/Dockerfile.prod
+         secrets:
+           - rails_master_key
        env_file: .env                      # ← EC2 に作った .env を利用
        depends_on:
          db:
@@ -717,6 +740,10 @@ docker-compose -f docker-compose.prod.yml logs -f app
          AWS_S3_BUCKET: "dolcos-calc-prod-assets"  # S3のバケット名
        command: bash -lc "bundle exec rails db:migrate && bundle exec rails server -b 0.0.0.0 -p 3000"
        restart: unless-stopped
+
+   secrets:
+     rails_master_key:
+       file: ./config/credentials/production.key
 
    volumes:
      db-data:
@@ -778,8 +805,284 @@ docker-compose -f docker-compose.prod.yml logs -f app
    docker compose -f docker-compose.prod.yml exec app rails r 'p Rails.application.config.active_storage.service'
    # => :amazon が出ればOK
    ```
+## 13. **RDSとの連携**
 
-<br><br>
+* 🧭 ステップ 1：RDS コンソールを開く
+
+   1. ブラウザで
+      👉 [https://console.aws.amazon.com/rds/](https://console.aws.amazon.com/rds/)
+      にアクセス
+   2. 右上で **リージョンが「アジアパシフィック（東京）ap-northeast-1」** になっていることを確認
+      （EC2 と同じリージョンである必要があります）
+
+---
+
+* 🧱 ステップ 2：データベースを作成
+
+   1. 左メニュー「**データベース**」を選択
+   2. 右上「**データベースの作成**」ボタンをクリック
+
+---
+
+* 🧩 ステップ 3：基本設定
+
+   | 設定項目             | 推奨値・説明                                      |
+   | ---------------- | ------------------------------------------- |
+   | **作成方法**         | 標準作成                                        |
+   | **エンジンのタイプ**  | PostgreSQL |
+   | **エンジンバージョン**   | PostgreSQL 17.6-R2（最新のマイナー（RDSの R 番号付き））                 |
+   | **RDS 延長サポート**   | 無効 |
+   | **テンプレート**       | 開発/テスト（小規模なら）または本番                          |
+   | **デプロイオプション** | シングル AZ DB インスタンスデプロイ (1 インスタンス) |
+   | **DB インスタンス識別子** | dolcos-db（任意）                               |
+   | **マスターユーザー名** | `postgres` |
+   | **認証情報管理** | セルフマネージド、パスワードを自動生成 |
+
+   ※ 認証情報は、データベースを作成した後に確認できます。データベース作成バナーの [認証情報の詳細を表示] をクリックすると、パスワードが表示されます。
+
+---
+
+* 💾 ステップ 4：インスタンスの設定 ~
+
+   | 設定               | 推奨値（小規模想定）                             |
+   | ---------------- | -------------------------------------- |
+   | **DB インスタンスクラス** | `db.t4g.micro` or `db.t3.micro`（無料枠対応） |
+   | **ストレージタイプ**     | 汎用 SSD (gp2)                           |
+   | **ストレージサイズ**     | 20GB（後で拡張可）                       |
+   | **自動スケーリング**     | 無効（初期段階では固定）                           |
+   | **コンピューティングリソース**          | EC2 コンピューティングリソースに接続                    |
+   | **EC2 インスタンス**    | `dolcos-calc-server` を選択<br>ここを選ぶと、RDS 側が“EC2からDBへ入れるように”SGを自動調整します。               |
+   | **DB サブネットグループ** | 自動セットアップ                          |
+   | **VPC セキュリティグループ**            | まずは 「既存の選択」 でOK<br>将来的には RDS専用SG（例：`dolcos-db-sg`） を作り、インバウンド 5432/TCP の“ソース”に EC2側SG（例：`dolcos-calc-sg`） を指定する構成がベスト                                  |
+   | **追加の VPC セキュリティグループ**   | 選択なし |
+   | **認証機関**   | デフォルト |
+   | **データベースポート**   | 5432 |
+   | **データベース認証オプション**   | パスワード認証       |
+   | **データベースインサイト**   | データベースインサイト - スタンダード  |
+   | **Performance Insights** | 有効 |
+   | **保持期間** | 7日 |
+   | **AWS KMS キー** | default |
+   | **拡張モニタリング**   | 有効       |
+   | **OS メトリクスの詳細度** | 60秒 |
+   | **OS メトリクスのモニタリングの役割** | デフォルト |
+   | **ログのエクスポート** | PostgreSQL ログのみ✅ |
+   | **DevOps Guru** | OFF（あとからON可） |
+
+---
+
+* 🕒 ステップ 5：追加設定
+
+   展開して次の項目を設定：
+
+   | 項目              | 設定値                       |
+   | --------------- | ------------------------- |
+   | **最初のデータベース名**   | `dolcos_production`       |
+   | **DB パラメータグループ**   | 既定でOK（後から変更可）             |
+   | **自動バックアップ**   | 有効             |
+   | **バックアップ保持期間**  | 7日（推奨）                    |
+   | **バックアップウィンドウ**  | ウィンドウを選択 ⇒ 18:00 UTC 0.5時間                    |
+   | **スナップショットにタグをコピー**          | ✅チェック |
+   | **別の AWS リージョンでレプリケーションを有効化**          | オフ |
+   | **暗号を有効化**          | ✅チェック |
+   | **マイナーバージョン自動アップグレード**   | 有効             |
+   | **メンテナンスウィンドウ** | ウィンドウを選択 ⇒ 土曜日 19:00 UTC 0.5時間     |
+
+---
+* 🚀 ステップ 6：作成をクリック
+
+   数分でインスタンスが作成されます。  
+   作成完了後、一覧に新しい DB が表示されます。
+
+---
+
+* 🔑 ステップ 7：接続情報を確認
+
+   1. 作成した DB をクリック
+   2. データベース作成バナーの [`接続の詳細を表示`] をクリック ⇒ 情報を控える  
+      * **※ このパスワードを表示できるのはこのときだけです。**  
+         参照用にパスワードをコピーして保存しておいてください。  
+         パスワードを紛失した場合は、データベースを変更してパスワードを変更する必要があります。  
+   2. **「接続とセキュリティ」タブ**を開く
+   3. **「エンドポイント」**と**「ポート」**を控えておきます
+
+      * 例：`dolcos-db.xxxxxxxxx.ap-northeast-1.rds.amazonaws.com:5432`
+
+   このエンドポイントが、Rails の `.env.prod` に書く `DATABASE_URL` のホスト部分です。
+
+---
+
+* ✅ ステップ 8：動作確認（EC2から）
+
+   ```bash
+   # EC2 内で（または Docker 内で）
+   cd ~/dolcos-calc
+   docker compose -f docker-compose.prod.yml exec app rails r "puts ActiveRecord::Base.connection.execute('select current_timestamp').to_a"
+   # {"current_timestamp"=>2025-10-20 06:24:31.325099 +0000}が返れば疎通OK
+   ```
+
+接続できれば成功。
+これで次の手順「アプリ用 DB ユーザー作成（dolcos_app）」に進めます。
+
+## 14. アプリ用 DB を RDS へ向ける
+* **ステップ 1. アプリ用 DB ユーザー（最小権限）**
+
+   一時 psql コンテナで入る（パスワードはRDS作成時のpostgres）
+   ```bash
+   docker run --rm -it postgres:17-alpine psql -h <RDSエンドポイント> -U postgres -d dolcos_production
+   ```
+   `dolcos_production=>` となるので、以下のように入力
+
+   ```sql
+   -- 1) アプリ用ユーザー
+   CREATE USER dolcos_app WITH PASSWORD '強いパスワード';
+   -- 2) DB接続権限
+   GRANT CONNECT ON DATABASE dolcos_production TO dolcos_app;
+   -- 3) publicスキーマでテーブル作成できるように
+   GRANT USAGE, CREATE ON SCHEMA public TO dolcos_app;
+   -- 4) 既存オブジェクトへの権限（テーブル & シーケンス）
+   GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO dolcos_app;
+   GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO dolcos_app;
+   -- 5) これから作られるオブジェクトへのデフォルト権限
+   --   （このコマンドを実行した“ロールが将来作る”オブジェクトに適用）
+   ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO dolcos_app;
+   ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO dolcos_app;
+   -- TimeZoneを変更するなら
+   ALTER DATABASE dolcos_production SET timezone = 'Asia/Tokyo';
+   -- そのセッションで即時反映させるなら
+   SET timezone = 'Asia/Tokyo';
+   -- 確認
+   SHOW timezone;                -- → Asia/Tokyo
+   SELECT current_timestamp;     -- → +09:00 で出る
+   \q
+   ```
+   `.env`（EC2 側 / 既存に追記）
+   ```bash
+   cd ~/dolcos-calc
+
+   # 1) バックアップ
+   cp .env .env.bak-$(date +%F_%H%M%S)
+
+   # 2) 本番必須の値を入れる（<>は適宜）
+   export RDS_HOST="<RDSエンドポイント>"
+   export APP_DB_USER="dolcos_app"
+   export APP_DB_PASS_RAW="<アプリDBパスワード>"
+
+   # パスワードをURLエンコード（記号があるとき必須）
+   export APP_DB_PASS_ENC=$(python3 -c "import os,urllib.parse; print(urllib.parse.quote(os.environ['APP_DB_PASS_RAW']))")
+   
+   # 3) 置換＆追記
+   # RAILS_ENV
+   grep -q '^RAILS_ENV=' .env && sed -i 's/^RAILS_ENV=.*/RAILS_ENV=production/' .env || echo 'RAILS_ENV=production' >> .env
+
+   # DATABASE_URL
+   if grep -q '^DATABASE_URL=' .env; then
+     sed -i -E 's|^DATABASE_URL=.*$|DATABASE_URL=postgres://'"$APP_DB_USER"':'"$APP_DB_PASS_ENC"'@'"$RDS_HOST"':5432/dolcos_production|' .env
+   else
+     echo "DATABASE_URL=postgres://$APP_DB_USER:$APP_DB_PASS_ENC@$RDS_HOST:5432/dolcos_production" >> .env
+   fi
+
+   # 4) ローカル用POSTGRES_*を削除
+   sed -i -E '/^POSTGRES_(USER|PASSWORD|DB)=/d' .env
+
+   # 5) マスクして確認
+   echo "--- masked preview ---"
+   sed -E \
+     -e 's#(DATABASE_URL=postgres://[^:]+:)[^@]+#\1********#' \
+     -e 's#(SECRET_KEY_BASE=).*#\1********#' \
+     -e 's#(SMTP_PASSWORD=).*#\1********#' \
+     .env | grep -E '^(RAILS_ENV|DATABASE_URL|SECRET_KEY_BASE|APP_HOST|MAILER_SENDER|SMTP_)='
+   ```
+
+   再起動して確認
+   ```bash
+   docker compose -f docker-compose.prod.yml up -d --force-recreate app
+   docker compose -f docker-compose.prod.yml exec app rails r "puts ActiveRecord::Base.connection.execute('select current_user').to_a"
+   ```
+   `{"current_user"=>"dolcos_app"}` が出ればOK
+
+* **ステップ 2. RDS 連携前の暫定疎通用として db サービス（ローカルPostgres）を入れていた名残を削除**
+
+   `docker-compose.prod.yml` を以下に修正
+
+   ```yaml
+   services:
+     app:
+       build:
+         context: .
+         dockerfile: app/Dockerfile.prod
+         secrets:
+           - rails_master_key
+           - db_url
+       env_file: .env                      # ← EC2 に作った .env を利用
+       ports:
+         - "127.0.0.1:3000:3000"
+       environment:
+         RAILS_SERVE_STATIC_FILES: "1"
+         RAILS_LOG_TO_STDOUT: "1"
+         AWS_REGION: "ap-southeast-2"
+         AWS_S3_BUCKET: "dolcos-calc-prod-assets"
+       command: bash -lc "bundle exec rails db:migrate && bundle exec rails server -b 0.0.0.0 -p 3000"
+       restart: unless-stopped
+
+   secrets:
+     rails_master_key:
+       file: ./config/credentials/production.key
+     db_url:
+       environment: DATABASE_URL
+   ```
+   `Dockerfile.prod` を修正
+   ```dockerfile
+   # syntax=docker/dockerfile:1.7
+   FROM public.ecr.aws/docker/library/ruby:3.3-slim
+   # ...(省略)...
+      # ビルド時はダミーの SECRET_KEY_BASE を渡す（実行時は .env の本物を使用）
+      RUN --mount=type=secret,id=rails_master_key \
+         --mount=type=secret,id=db_url \
+         sh -lc 'set -eu; \
+           RAILS_MASTER_KEY="$(tr -d "\r\n" </run/secrets/rails_master_key)"; \
+            DATABASE_URL="$(tr -d "\r\n" </run/secrets/db_url)"; \
+            export RAILS_MASTER_KEY DATABASE_URL; \
+            export SECRET_KEY_BASE=dummy; \
+           bundle exec rails assets:precompile'
+   # ...(省略)...
+   ```
+
+   ローカルDBコンテナやボリュームが残っていれば掃除 (EC2内)
+
+   ```bash
+   # 1) ローカルDBコンテナの確認
+   docker ps -a
+   # 1) ローカルDBコンテナを停止・削除
+   docker rm -f <dbコンテナ名>  # いれば
+   # 2) ボリュームの確認（dbのデータが入っているボリューム名を特定）
+   docker volume ls
+   # 3) 不要ならボリュームも削除（※残データを完全削除）
+   docker volume rm <db-data>   # いれば
+   # 5) 孤児コンテナ/サービス整理（db を消した後の掃除）
+   docker compose -f docker-compose.prod.yml up -d --remove-orphans
+   ```
+
+* **ステップ 3.反映 & 検証**
+
+   ```powershell
+   # マイグレーション実行
+   docker compose -f docker-compose.prod.yml exec app rails db:migrate
+
+   # ヘルスチェック
+   docker compose -f docker-compose.prod.yml exec app rails r "puts ActiveRecord::Base.connection.current_database"
+   # dolcos_productionが出れば成功
+   ```
+
+
+
+
+
+
+
+
+
+
+<br><br><br><br><br><br><br><br><br><br>
 # AWSの本番環境の安全性
 
 ## **「IAM」 「ロール」 「インスタンスロール」 「S3連携」の関係**

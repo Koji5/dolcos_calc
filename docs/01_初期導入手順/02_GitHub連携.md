@@ -275,29 +275,6 @@ Rails.application.configure do
 end
 ```
 
-`config\database.yml`
-
-```yaml
-default: &default
-  adapter: postgresql
-  encoding: unicode
-  # For details on connection pooling, see Rails configuration guide
-  # https://guides.rubyonrails.org/configuring.html#database-pooling
-  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
-  url: <%= ENV.fetch("DATABASE_URL", "postgres://postgres:postgres@db:5432/dolcos_calc_development") %>
-
-
-development:
-  <<: *default
-
-test:
-  <<: *default
-  url: <%= ENV.fetch("DATABASE_URL", "postgres://postgres:postgres@db:5432/dolcos_calc_test") %>
-
-production:
-  <<: *default
-```
-
 # コミットメッセージ例
   
 例：`git commit -m "chore: bootstrap Rails 8 + Docker + Postgres dev env"`  
