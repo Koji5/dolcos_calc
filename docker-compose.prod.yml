@@ -21,6 +21,8 @@ services:
       - rails_master_key
     command: bash -lc "bundle exec rails db:migrate && bundle exec rails server -b 0.0.0.0 -p 3000"
     restart: unless-stopped
+    volumes:
+      - ./config/credentials/production.key:/app/config/credentials/production.key:ro
 
 secrets:
   rails_master_key:
