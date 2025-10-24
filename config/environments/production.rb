@@ -64,6 +64,7 @@ Rails.application.configure do
   }
 
   # Specify outgoing SMTP server. Remember to add smtp/* credentials via rails credentials:edit.
+  config.action_mailer.delivery_method = :smtp
   config.action_mailer.smtp_settings = Rails.application.credentials.smtp
   config.action_mailer.default_options = {
     from: "noreply@dolcos-calc.com"
