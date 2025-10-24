@@ -312,14 +312,21 @@ dolcos-calc
           dockerfile: app/Dockerfile.prod
           secrets:
             - rails_master_key
-        env_file: .env                      # ← EC2 に作った .env を利用
+        env_file: .env                      # ← EC2 に作る .env を利用
         depends_on:
           db:
             condition: service_healthy
         ports:
           - "127.0.0.1:3000:3000"
+        environment:
+          RAILS_ENV: "production"
+          RACK_ENV:  "production"
+        secrets:
+          - rails_master_key
         command: bash -lc "bundle exec rails db:migrate && bundle exec rails server -b 0.0.0.0 -p 3000"
         restart: unless-stopped
+        volumes:
+          - ./config/credentials/production.key:/app/config/credentials/production.key:ro
 
     secrets:
       rails_master_key:
@@ -333,18 +340,35 @@ dolcos-calc
 
 ---
 
-## 7. **アプリの配置**
-
-1. リポジトリを clone
+## 6. **EC2 側で鍵を作り、GitHub に登録**
+1. EC2 側で鍵を作り、GitHub に登録
 
    ```bash
-   git clone https://github.com/xxxxx/dolcos_calc.git dolcos-calc
-   cd dolcos-calc
+   ssh-keygen -t ed25519 -C "ec2-dolcos-calc"    # 連打でOK（パスフレーズ任意）
+   eval "$(ssh-agent -s)"
+   ssh-add ~/.ssh/id_ed25519
+   cat ~/.ssh/id_ed25519.pub
    ```
+2. 表示された公開鍵（`ssh-ed25519 ...`）をGitHub側にコピー
+
+   * GitHub → 右上プロフィール → **Settings** → **SSH and GPG keys** → **New SSH key** → 貼り付け → 保存
+3. EC2 側で接続テスト：
+   ```bash
+   ssh -T git@github.com
+   # 初回は "Are you sure..." → yes、次に "Hi Koji5!" が出ればOK
+   ```
+4. SSHでclone：
+    ```bash
+    git clone git@github.com:Koji5/dolcos_calc.git ~/dolcos-calc
+    git remote set-url origin git@github.com:Koji5/dolcos_calc.git
+    cd ~/dolcos-calc
+    ```
 
    （2回目以降は `git pull origin main`）
 
-2. `.env` を作成
+## 7. **コンテナ側のアプリ設定**
+
+1. `.env` を作成
 
    ```bash
    cat > .env <<EOF
@@ -358,7 +382,7 @@ dolcos-calc
    EOF
    ```
 
-3. `credentials` を生成
+2. `credentials` を生成
 
    ```bash
    # production.key を手動生成
@@ -376,7 +400,21 @@ dolcos-calc
    ## コンテナ → ホストへ .enc をコピー
    mkdir -p ./config/credentials
    docker compose -f docker-compose.prod.yml cp app:/app/config/credentials/production.yml.enc ./config/credentials/production.yml.enc
+   ## Git にプッシュ
+   git push origin main
    ```
+
+3. ローカルに同じ production.key を作成（揃える）
+
+    EC2の production.key と同じ内容をローカルにも置きます。  
+    Git をローカルにpullした後、
+    ```powershell
+    # ローカルPCで実行（EC2→ローカルへコピー）
+    cd c:\dev\dolcos_calc
+    scp -i "C:\Users\xxxxx\.ssh\dolcos-key.pem" ec2-user@<IP>:/home/ec2-user/dolcos-calc/config/credentials/production.key ./config/credentials/production.key
+    icacls ./config/credentials/production.key
+    ```
+   ※ `config/credentials/production.key` は Git 管理しない！
 
 ---
 
@@ -734,12 +772,18 @@ docker-compose -f docker-compose.prod.yml logs -f app
        ports:
          - "127.0.0.1:3000:3000"
        environment:
+         RAILS_ENV: "production"
+         RACK_ENV:  "production"
          RAILS_SERVE_STATIC_FILES: "1"
          RAILS_LOG_TO_STDOUT: "1"
          AWS_REGION: "ap-southeast-2"              # 利用しているリージョン名
          AWS_S3_BUCKET: "dolcos-calc-prod-assets"  # S3のバケット名
+       secrets:
+         - rails_master_key
        command: bash -lc "bundle exec rails db:migrate && bundle exec rails server -b 0.0.0.0 -p 3000"
        restart: unless-stopped
+        volumes:
+          - ./config/credentials/production.key:/app/config/credentials/production.key:ro
 
    secrets:
      rails_master_key:
@@ -1004,32 +1048,38 @@ docker-compose -f docker-compose.prod.yml logs -f app
 
    `docker-compose.prod.yml` を以下に修正
 
-   ```yaml
-   services:
-     app:
-       build:
-         context: .
-         dockerfile: app/Dockerfile.prod
-         secrets:
-           - rails_master_key
-           - db_url
-       env_file: .env                      # ← EC2 に作った .env を利用
-       ports:
-         - "127.0.0.1:3000:3000"
-       environment:
-         RAILS_SERVE_STATIC_FILES: "1"
-         RAILS_LOG_TO_STDOUT: "1"
-         AWS_REGION: "ap-southeast-2"
-         AWS_S3_BUCKET: "dolcos-calc-prod-assets"
-       command: bash -lc "bundle exec rails db:migrate && bundle exec rails server -b 0.0.0.0 -p 3000"
-       restart: unless-stopped
+    ```yaml
+    services:
+      app:
+        build:
+          context: .
+          dockerfile: app/Dockerfile.prod
+          secrets:
+            - rails_master_key
+            - db_url
+        env_file: .env                      # ← EC2 に作った .env を利用
+        ports:
+          - "127.0.0.1:3000:3000"
+        environment:
+          RAILS_ENV: "production"
+          RACK_ENV:  "production"
+          RAILS_SERVE_STATIC_FILES: "1"
+          RAILS_LOG_TO_STDOUT: "1"
+          AWS_REGION: "ap-southeast-2"
+          AWS_S3_BUCKET: "dolcos-calc-prod-assets"
+        secrets:
+          - rails_master_key
+        command: bash -lc "bundle exec rails db:migrate && bundle exec rails server -b 0.0.0.0 -p 3000"
+        restart: unless-stopped
+        volumes:
+          - ./config/credentials/production.key:/app/config/credentials/production.key:ro
 
-   secrets:
-     rails_master_key:
-       file: ./config/credentials/production.key
-     db_url:
-       environment: DATABASE_URL
-   ```
+    secrets:
+      rails_master_key:
+        file: ./config/credentials/production.key
+      db_url:
+        environment: DATABASE_URL
+    ```
    `Dockerfile.prod` を修正
    ```dockerfile
    # syntax=docker/dockerfile:1.7
@@ -1072,13 +1122,209 @@ docker-compose -f docker-compose.prod.yml logs -f app
    docker compose -f docker-compose.prod.yml exec app rails r "puts ActiveRecord::Base.connection.current_database"
    # dolcos_productionが出れば成功
    ```
+## 15. Amazon SES (SMTP)の初回セットアップ
+* **🔧 ゴール**
+    * Amazon SESでドメインを認証
+    * SMTP ユーザーを発行
+    * Rails の環境変数に設定できる状態にする
+---
+* **🪜 ステップ 1. SES 管理画面を開く**
 
+    1. [AWS マネジメントコンソール](https://console.aws.amazon.com/) にログイン
+    2. 上部のリージョンを必ず **「利用しているリージョン（例：アジアパシフィック 東京 ap-northeast-1）」** に変更
+    3. 検索バーで「**SES**」と入力し、
+    **「Simple Email Service」** をクリック
 
+---
 
+* **🪜 ステップ 2. Amazon Simple Email Service (SES) の ID を作成**
+    1. 画面左上の ☰（ハンバーガーメニュー） をクリックし、メニューを出します。
+      * 「設定」＞「ID」をクリック
+      * 「IDの作成」ボタンをクリック
+    2. ID の作成
+        * ID タイプ：ドメイン
+        * ドメイン：dolcos-calc.com（Route53 で管理しているドメイン）
+        * デフォルト設定セットの割り当て：チェック無し
+        * テナントに割り当てる：チェック無し
+        * カスタム MAIL FROM ドメインの使用：チェック無し
+        * ID タイプ：Easy DKIM
+        * DKIM 署名キーの長さ：RSA_2048_BIT
+        * DNS レコードの Route53 への発行：有効
+        * DKIM 署名：有効
+        * 「ID の作成」クリック
+    3. SESが自動でやってくれること
+        * `dolcos-calc.com` 用の DKIM 用 CNAME レコード（3件）を自動生成
+        * それらを Route 53 のホストゾーンに自動登録
+        * SES が定期的に DNS をチェック
+        * CNAME が正しく反映されているのを確認  
 
+    「設定」＞「ID」＞dolcos-calc.com＞概要 で、ID ステータスが✅検証済みに変わったら完了です。
 
+---
 
+* **🪜 ステップ 3. SMTP ユーザーを作成**
 
+    SESでは通常のAWSユーザーではなく、
+    **「SMTP認証専用のユーザー」** を作ります。
+
+    1. メニュー → 「SMTP 設定」 をクリック
+        * （左ナビ内にあります）
+    2. 「SMTP 認証情報の作成」をクリック → ユーザーの詳細を指定
+        * ユーザー名（例）：
+
+          ```
+          ses-smtp-user-dolcos
+          ```
+        * 「ユーザーの作成」ボタンをクリック
+
+    3. 完了画面で下記をコピー
+
+        * SES が表示する以下の情報を控えておきます：
+          | 項目            | 例                                         |
+          | ------------- | ----------------------------------------- |
+          | IAM ユーザー名 | ses-smtp-user-dolcos |
+          | SMTP ユーザー名 | AKIAXXXXXXXXXXXXX                         |
+          | SMTP パスワード | `xxxxxx`（生成された長い文字列）                      |
+          > **⚠️ この画面を閉じるとパスワードは二度と見れないので、**  
+          > **`.env`や `.env.prod` などにコピーしておきましょう。**  
+        * 以下の項目は、「SMTP 設定」画面から確認できます。
+          | 項目            | 例                                         | 説明 |
+          | ------------- | ----------------------------------------- |------ |
+          | **SMTP エンドポイント** | `email-smtp.ap-northeast-1.amazonaws.com` |  |
+          | **ポート**         | `587`                                     | STARTTLS。推奨ポート                       |
+          | **TLS**         | 有効（STARTTLS）                              | Rails の `enable_starttls_auto: true` |
+
+---
+
+* **🪜 ステップ 4. SES サンドボックス解除（任意だけど必須）**
+
+    初期状態のSESは「サンドボックス」内なので
+    * 認証済みドメインまたはメールアドレス宛て**にしか送れない**
+    * 1日200通の送信制限（かつ1秒1通）
+
+    本番で使うには**サポートリクエストで「本番アクセス」申請**が必要です。
+
+    1. AWSコンソール上部で「**Service Quotas**」を検索して開く
+        * 画面上部のリージョンが、利用中のリージョンであることを確認する。（例：アジアパシフィック 東京）
+    2. 左メニュー → **AWS のサービス** をクリック
+    3. 一覧から **Amazon Simple Email Service (Amazon SES)** を選択
+    4. 「**Sending quota**」を選択して、画面右上の **「アカウントレベルでの引き上げをリクエスト」** ボタンをクリック
+    5. クォータ値を引き上げる：50000
+        *  → 「リクエスト」
+
+    → 送信後、数時間〜1日程度で解除されます。  
+    メールで「approved」と返ってきたらOK。
+
+---
+* **🪜 ステップ 5. credentials に SES 設定を追記する**
+    1. ローカルの Docker コンテナ内で credentials を編集する
+
+        ```powershell
+        cd C:\dev\dolcos_calc
+        $KEY = Get-Content -Raw .\config\credentials\production.key
+        docker compose run --rm -e RAILS_ENV=production -e RACK_ENV=production -e RAILS_MASTER_KEY="$KEY" app sh -lc "apt-get update >/dev/null 2>&1 && apt-get install -y nano >/dev/null 2>&1 || true; EDITOR=nano bundle exec rails credentials:edit --environment production"
+        ```
+
+        `nano`が起動するので、以下のように編集します。
+
+        ```yaml
+        # smtp:
+        #   user_name: my-smtp-user
+        #   password: my-smtp-password
+        #
+        # aws:
+        #   access_key_id: 123
+        #   secret_access_key: 345
+
+        # Used as the base secret for all MessageVerifiers in Rails, including the one protecting cookies.
+        smtp:
+          address: "<SMTP エンドポイント 例：email-smtp.ap-southeast-2.amazonaws.com>"
+          port: 587
+          user_name: "<あなたのSMTPユーザー名>"
+          password: "<あなたのSMTPパスワード>"
+          authentication: "login"
+          enable_starttls_auto: true
+
+        aws:
+          region: "<利用しているリージョン 例：ap-southeast-2>"
+
+        secret_key_base: xxxx......
+        ```
+
+        編集が終わったら、
+        * `Ctrl + O`で保存
+        * `Ctrl + X`で終了
+
+    2. ✅ 保存できたか確認
+
+        ```powershell
+        # .enc が更新されているか確認（タイムスタンプなど）
+        Get-ChildItem .\config\credentials\production.yml.enc
+
+        # nanoをもう一度実行し、平文のYAMLが読める（例：smtp: の値が見える）なら 復号OK です。
+        # 何も編集せず Ctrl+X で閉じれば、無駄な再暗号化は発生しません。
+        $KEY = Get-Content -Raw .\config\credentials\production.key
+        docker compose run --rm -e RAILS_ENV=production -e RACK_ENV=production -e RAILS_MASTER_KEY="$KEY" app sh -lc "apt-get update >/dev/null 2>&1 && apt-get install -y nano >/dev/null 2>&1 || true; EDITOR=nano bundle exec rails credentials:edit --environment production"
+        ```
+
+    3. 編集した `production.yml.enc` を Git に push して、EC2 側で pullする
+
+    4. EC2側で production.yml.enc を反映
+
+        credentialsファイルはビルド時にコピーされるので再ビルドが必要です。
+---
+* **🪜 ステップ 6. Rails設定をSES対応にする**
+
+    `config/environments/production.rb` の中を次のように編集・追記します
+
+    ```ruby
+    # config/environments/production.rb
+
+    Rails.application.configure do
+      # ...（中略）...
+
+      # SES (SMTP) 設定
+      config.action_mailer.smtp_settings = Rails.application.credentials.smtp
+
+      config.action_mailer.default_url_options = {
+        host: "dolcos-calc.com",
+        protocol: "https"
+      }
+
+      config.action_mailer.default_options = {
+        from: "noreply@dolcos-calc.com"
+      }
+
+      # 実際に送る
+      config.action_mailer.delivery_method = :smtp
+      config.action_mailer.perform_deliveries = true
+      config.action_mailer.raise_delivery_errors = true
+    end
+    ```
+
+    **※ ステップ 5 ステップ 6 の編集内容を Git にコミット → EC2 側に反映、を忘れずに！**
+---
+* **🪜 ステップ 7. メール送信テスト**
+
+    1. ビルド → 再起動 (EC2 側)
+
+        credentialsファイルはビルド時にコピーされるので再ビルドが必要です。
+        ``` bash
+        DOCKER_BUILDKIT=1 docker compose -f docker-compose.prod.yml build --no-cache app
+        docker compose -f docker-compose.prod.yml up -d
+        ```
+    2. 以下のコマンドをEC2上で実行して、実際にSES経由で送信されるか確認します。
+
+        ```bash
+        docker compose -f docker-compose.prod.yml exec app bash -lc '
+        RAILS_ENV=production \
+        bundle exec rails r "ActionMailer::Base.mail(from: \"noreply@dolcos-calc.com\", to: \"あなたのメールアドレス\", subject: \"SES test from EC2\", body: \"✅ Amazon SES SMTP test mail from dolcos-calc.com\" ).deliver_now"'
+        ```
+        **サンドボックス解除前なら、**  
+        「あなたのメールアドレス」 には **SES で検証済みのメールアドレス**を使ってください  
+        （※ 未検証のメールアドレスだとエラーが出ます）
+
+---
 
 
 
@@ -1111,7 +1357,121 @@ Rails（Active Storage）がS3へ画像をアップロードするとき、
 * キーの流出リスクゼロ
 * 権限を中央管理できる
 
+---
+
 ## **セキュリティ・メンテナンス**
 
 * `.env` に含まれる秘密値は外部に出さない（S3 / Parameter Storeなどで管理予定）
 * **SSHポート (22)** は “自分のIPだけ” 許可
+
+---
+
+## **SSM Parameter Store / Secrets Manager 管理**
+
+* 最初は `Docker secrets` での管理 → AWS SSM へ移行する場合  
+
+    > **移行コストは中〜低程度**（後からでも十分移行可能）  
+    > **課金はごくわずか**で、個人〜小規模プロジェクトならほぼ誤差レベルです。
+
+---
+
+* **🪜 1. 移行コストについて**
+
+    ### ✅ 現状
+
+    * 現在は `production.key` をホストに置いて `volumes:` でコンテナに渡しています。
+      → Rails 自体は `ENV["RAILS_MASTER_KEY"]` に値があれば動作OK。
+
+    ### ✅ SSM Parameter Store / Secrets Manager へ移行する場合
+
+    基本的に次の3ステップだけです：
+
+    1. **AWS 側に登録**
+
+          ```bash
+          aws ssm put-parameter \
+            --name "/dolcos-calc/rails/production_key" \
+            --value "$(cat config/credentials/production.key)" \
+            --type SecureString
+          ```
+
+          または Secrets Manager:
+
+          ```bash
+          aws secretsmanager create-secret \
+            --name dolcos-calc/rails/production_key \
+            --secret-string "$(cat config/credentials/production.key)"
+          ```
+
+    2. **EC2 側で取得して環境変数に設定**
+          起動時スクリプトや compose 起動前に：
+
+          ```bash
+          export RAILS_MASTER_KEY="$(aws ssm get-parameter \
+              --name "/dolcos-calc/rails/production_key" \
+              --with-decryption \
+              --query "Parameter.Value" \
+              --output text)"
+          ```
+
+          または secretsmanager 版：
+
+          ```bash
+          export RAILS_MASTER_KEY="$(aws secretsmanager get-secret-value \
+              --secret-id dolcos-calc/rails/production_key \
+              --query "SecretString" \
+              --output text)"
+          ```
+
+    3. **docker-compose.prod.yml の `volumes:` を削除**
+
+          ```yaml
+          environment:
+            RAILS_ENV: production
+            RAILS_MASTER_KEY: "${RAILS_MASTER_KEY}"
+          ```
+
+          として、`docker compose up` 前に export した変数を利用。
+
+    👉 つまり、
+
+    * Rails 側の設定変更は **不要**
+    * 変更するのは **Docker 起動前の環境変数注入方法のみ**
+    * **アプリコード変更なし**で移行完了
+
+    ### ✅ コスト的には「1時間あれば完全移行」レベル
+
+    Docker secrets → AWS SSM も相性が良いので、あとから自然に移行できます。
+
+---
+
+* **💰 2. 課金について**
+
+    | サービス                        | 無料枠                       | 超過時課金                                         | 備考                     |
+    | --------------------------- | ------------------------- | --------------------------------------------- | ---------------------- |
+    | **AWS SSM Parameter Store** | 10,000 パラメータまで無料（標準パラメータ） | 「SecureString」を使うと 1件あたり **約 $0.05/月**        | ほぼ無料。KMSで暗号化される。       |
+    | **AWS Secrets Manager**     | 無料枠なし                     | **$0.40/月/secret + API呼び出し課金（$0.05/10,000回）** | 高機能（ローテーション・バージョン管理など） |
+
+    > 💡 `production.key` 程度なら SSM Parameter Store (SecureString) で十分。  
+    > Secrets Manager は認証情報を頻繁にローテするシナリオ向け。
+
+---
+
+* **🧩 3. 推奨運用（小規模なら）**
+
+    | 用途                 | サービス                                     | 理由         |
+    | ------------------ | ---------------------------------------- | ---------- |
+    | Rails の master.key | ✅ **SSM Parameter Store (SecureString)** | 簡単・安い・十分安全 |
+    | DB, SMTP パスワード等    | ✅ **同じく SSM Parameter Store**            | 一元管理可能     |
+    | 将来、複数サーバで自動ローテ     | 🔁 **Secrets Manager に昇格**               | 自動ローテ機能あり  |
+
+---
+
+* **✅ まとめ**
+
+    | 観点        | 評価                                |
+    | --------- | --------------------------------- |
+    | **移行コスト** | ★☆☆（低い）Dockerの環境変数注入方法を変えるだけ      |
+    | **課金**    | Parameter Storeならほぼ無料（$0.05/月 程度） |
+    | **利点**    | 鍵をGitやEC2に置かず、AWS IAMで制御できる       |
+    | **将来性**   | ECS/Fargate化、複数環境への展開が容易になる       |
