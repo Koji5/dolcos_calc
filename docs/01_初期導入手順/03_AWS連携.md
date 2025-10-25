@@ -267,6 +267,11 @@ dolcos-calc
    # アプリ本体
    COPY . .
 
+   # ESMを本番に同梱（Importmap の pin 先と一致させる）
+   RUN mkdir -p public/esm/@popperjs/core public/esm/bootstrap \
+     && cp -r node_modules/@popperjs/core/dist/esm/* public/esm/@popperjs/core/ \
+     && cp node_modules/bootstrap/dist/js/bootstrap.esm.js public/esm/bootstrap/bootstrap.esm.js
+
    # CSSをビルドして、bootstrap-icons の CSS/フォントを builds 配下へコピー
    RUN npm run build:css
 
