@@ -43,14 +43,14 @@ dolcos-calc
 | 項目           | 設定例                     |
 | ------------ | ----------------------- |
 | 登録者タイプ       | Business（法人）            |
-| Organization | Office UTQ Inc.         |
-| Contact name | Koji Sakamoto           |
-| Address      | 6-33-13 Tsuboi, Chuo-ku |
+| Organization | Example Corp.         |
+| Contact name | Example Person           |
+| Address      | Example Address |
 | City         | Kumamoto-shi            |
 | State        | Kumamoto                |
 | Country      | Japan                   |
-| Postal Code  | 860-0863                |
-| Phone        | +81-96-xxxx-xxxx        |
+| Postal Code  | 860-XXXX                |
+| Phone        | +81-XX-xxxx-xxxx        |
 | Email        | 普段確認できる業務用メール           |
 
 ---
@@ -113,7 +113,7 @@ dolcos-calc
 | インスタンスタイプ | t3.micro（無料枠）                   | |
 | キーペア      | 新規作成（例：`dolcos-key`）            | dolcos-key.pemをローカルPCに保存 |
 | ストレージ     | 20GB でOK                        | |
-| **VPC**            | `vpc-04cdea686121558d9 (デフォルト)` | そのままでOK（AWSが用意している基本ネットワーク）           |
+| **VPC**            | `vpc-******** (デフォルト)` | そのままでOK（AWSが用意している基本ネットワーク）           |
 | **サブネット**          | 指定なし（または自動選択）                   | デフォルトVPC内のどこでもOK。後でElastic IPで固定可。    |
 | **アベイラビリティゾーン**    | 指定なし                            | 自動で選ばせてOK（`ap-northeast-1a` などが選ばれます） |
 | **パブリックIPの自動割り当て** | ✅ **有効化**（重要）                   | これをONにしないと、外部からアクセスできません！             |
@@ -721,20 +721,44 @@ docker-compose -f docker-compose.prod.yml logs -f app
 ### ⑥ EC2で確認
 
    * SSHでEC2に入り、次を実行：
+ 
+      ```bash
+      trap 'unset TOKEN ROLE CREDS' EXIT
+      export AWS_S3_BUCKET="dolcos-calc-prod-assets"
+      export AWS_REGION="ap-northeast-1"
+      set -euo pipefail
 
-     ```bash
-     TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
-     echo "$TOKEN"   # 何か文字列が返ればOK（空なら失敗）
-     curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/iam/security-credentials/
-     # → ここでロール名（例：DolcosCalcRole）が1行で出ます
-     ROLE=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/iam/security-credentials/)
-     curl -s -H "X-aws-ec2-metadata-token: $TOKEN" "http://169.254.169.254/latest/meta-data/iam/security-credentials/$ROLE" | jq .
-     # → ここで資格情報JSONを確認
-     curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/iam/info
-     ```
+      # ① IMDSv2トークン取得（非表示）
+      TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" \
+        -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
 
-   * これでロール名と、`iam/security-credentials/` に DolcosCalcRole が見えていればOKです。  
-   * もうAWSアクセスキーは不要になります。
+      # ② ロール名取得（非表示）
+      ROLE=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" \
+        http://169.254.169.254/latest/meta-data/iam/security-credentials/)
+
+      # ③ 資格情報の存在と期限だけ確認（値は表示しない）
+      CREDS=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" \
+        "http://169.254.169.254/latest/meta-data/iam/security-credentials/$ROLE")
+      echo "$CREDS" | jq -e '.Expiration' >/dev/null
+
+      # ④ ロール紐付けの存在だけ確認（出力しない）
+      curl -s -H "X-aws-ec2-metadata-token: $TOKEN" \
+        http://169.254.169.254/latest/meta-data/iam/info >/dev/null
+
+      # ⑤ 認証の健全性チェック（表示しない）
+      aws sts get-caller-identity >/dev/null
+
+      # ⑥ S3権限の疎通（"S3 OK" が表示される）
+      aws s3 ls "s3://$AWS_S3_BUCKET" --region "$AWS_REGION" >/dev/null \
+        && echo "S3 OK" || echo "S3 NG"
+      ```
+
+   * "S3 OK" で権限 OK です。 もうAWSアクセスキーは不要になります。
+   * “S3 NG” のときの代表的な原因：
+
+      * `AWS_REGION` がバケットのリージョンと不一致 → `aws s3api get-bucket-location --bucket "$AWS_S3_BUCKET"`
+      * EC2 のインスタンスロールに S3 の許可不足 → `s3:ListBucket` / `s3:GetObject` などをポリシーで付与
+      * バケット名のスペル違い / 存在しないバケット
 
 ## 12. **Active StorageをS3に向ける**
 
