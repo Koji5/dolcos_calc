@@ -6,18 +6,24 @@ class Users::SessionsControllerTest < ActionDispatch::IntegrationTest
   test "guest sign-in redirects to authenticated_root" do
     post guest_sign_in_path
     assert_redirected_to authenticated_root_path
+
     follow_redirect!
     assert_response :success
-    assert user_signed_in?
-    assert_match /ゲストとしてログインしました|/ , response.body
+
+    # ログイン必須ページにアクセスできることをもって“ログイン済”の証拠にする
+    get workspace_url
+    assert_response :success
   end
 
-  test "sign out works" do
-    # いったんゲストでログイン
+  test "sign out works (default)" do
     post guest_sign_in_path
     delete destroy_user_session_path
-    # after_sign_out_path_for の実装に合わせて期待を調整
-    # 例: サインイン画面へ
+    assert_redirected_to unauthenticated_root_path # ＝ "/"
+  end
+
+  test "sign out with redirect=sign_in goes to sign-in" do
+    post guest_sign_in_path
+    delete destroy_user_session_path(redirect: "sign_in")
     assert_redirected_to new_user_session_path
   end
 end
