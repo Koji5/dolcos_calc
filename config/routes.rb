@@ -8,7 +8,7 @@ Rails.application.routes.draw do
   authenticated :user do
     root to: "workspaces#show", as: :authenticated_root
   end
-  
+
   # 非認証の時はこちら
   unauthenticated do
     root to: "pages#home", as: :unauthenticated_root
