@@ -10,12 +10,10 @@
       <div class="d-flex flex-wrap gap-2">
         <%= link_to "サインアップ", new_user_registration_path, class: "btn btn-primary btn-lg px-4" %>
         <%= link_to "ログイン",     new_user_session_path,   class: "btn btn-outline-secondary btn-lg px-4" %>
-        <%= link_to "ゲストとして利用", guest_mode_path, class: "btn btn-link btn-lg text-decoration-none" %>
+        <%= link_to "ゲストとして利用", guest_sign_in_path, class: "btn btn-link btn-lg text-decoration-none", data: { turbo_method: :post, turbo_frame: "_top" } %>
       </div>
 
-      <div class="mt-4 small text-muted">
-        <i class="bi bi-box-arrow-right"></i>※ 現在はダミー遷移です。後日、認証・保存機能をつなぎ込みます。
-      </div>
+      <div class="mt-4 small text-muted">ログインまで実装</div>
     </div>
 
     <div class="col-12 col-lg-6 text-center">
