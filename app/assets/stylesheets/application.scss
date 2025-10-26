@@ -1,2 +1,3 @@
-// Sassy
-@use "bootstrap/scss/bootstrap";
+@use "bootstrap/scss/bootstrap" as *;
+@use "components/workspaces";
+@use "components/pages";

@@ -1,0 +1,99 @@
+<header id="appHeader" class="navbar bg-body border-bottom sticky-top">
+  <div class="container-fluid d-flex align-items-center gap-2">
+
+    <!-- 左: ハンバーガー（XL未満のみ表示） -->
+    <button class="btn btn-outline-secondary d-xl-none"
+            type="button"
+            data-bs-toggle="offcanvas"
+            data-bs-target="#appSidebar"
+            aria-controls="appSidebar"
+            aria-label="メニューを開く">
+      <i class="bi bi-list" aria-hidden="true"></i>
+    </button>
+
+    <!-- 中央: サイトタイトル（xsは中央寄せ＆トランケート、sm以上は左寄せ） -->
+    <%= link_to "ドルコス年利計算機", dashboard_path,
+                class: "navbar-brand flex-grow-1 text-truncate text-center text-sm-start m-0",
+                data: { turbo_frame: "main" } %>
+
+    <!-- 右: ユーザードロップダウン（xsはアイコンのみ、md以上でメール表示） -->
+    <div class="dropdown">
+      <button class="btn btn-outline-secondary dropdown-toggle d-flex align-items-center"
+              type="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="bi bi-person-circle me-2" aria-hidden="true"></i>
+        <span class="d-none d-md-inline"><%= current_user&.email || "ゲスト" %></span>
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li>
+          <%= link_to dummy_path, class: "dropdown-item", data: { turbo_frame: "main" } do %>
+            <i class="bi bi-gear me-2"></i> 設定
+          <% end %>
+        </li>
+        <li>
+          <%= link_to destroy_user_session_path(redirect: "sign_in"),
+                      data: { turbo_method: :delete, turbo_frame: "_top", turbo_confirm: "ユーザーを切り替えます。よろしいですか？" },
+                      class: "dropdown-item" do %>
+            <i class="bi bi-arrow-left-right me-2"></i> ユーザー切替
+          <% end %>
+        </li>
+        <li><hr class="dropdown-divider"></li>
+        <li>
+          <%= link_to destroy_user_session_path,
+                      data: { turbo_method: :delete, turbo_frame: "_top", turbo_confirm: "ログアウトしますか？" },
+                      class: "dropdown-item text-danger" do %>
+            <i class="bi bi-box-arrow-right me-2"></i> ログアウト
+          <% end %>
+        </li>
+      </ul>
+    </div>
+  </div>
+</header>
+
+<div class="container-fluid">
+  <!-- ★ ヘッダー直下のラッパ。XL以上は固定高＆内部だけスクロール -->
+  <div class="app-shell d-xl-flex">
+
+    <nav id="appSidebar"
+         class="offcanvas offcanvas-start offcanvas-xl border-end app-col"
+         tabindex="-1"
+         aria-labelledby="appSidebarLabel"
+         style="--bs-offcanvas-width: 260px;">
+      <div class="offcanvas-header d-xl-none d-flex align-items-center gap-2">
+        <h5 class="offcanvas-title flex-grow-1 mb-0 text-truncate" id="appSidebarLabel">メニュー</h5>
+        <button type="button" class="btn btn-outline-secondary ms-auto" data-bs-dismiss="offcanvas" aria-label="閉じる">
+          <i class="bi bi-list" aria-hidden="true"></i>
+        </button>
+      </div>
+      <!-- ★ ここは app-col が高さ100%を持つので h-100 を付けておくと安定 -->
+      <div class="offcanvas-body p-0 h-100">
+        <%= render "workspaces/sidebar" %>
+      </div>
+    </nav>
+
+    <main class="flex-grow-1 py-3 app-col">
+      <%= turbo_frame_tag "main", src: dashboard_path, loading: "lazy" do %>
+        <div class="p-3 text-muted">読み込み中...</div>
+      <% end %>
+    </main>
+
+    <aside class="d-none d-xxl-block border-start py-3 app-col" style="width: 280px;">
+      <div class="card">
+        <div class="card-body">
+          <div class="text-muted">広告スペース（XXL以上で表示）</div>
+          <div class="ratio ratio-1x1 mt-2 border rounded"></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<!-- ヘッダー高さを CSS 変数に反映（レスポンシブ対応） -->
+<script type="module">
+  const setHeaderVar = () => {
+    const h = document.getElementById("appHeader")?.offsetHeight || 56;
+    document.documentElement.style.setProperty("--app-header-h", `${h}px`);
+  };
+  addEventListener("resize", setHeaderVar);
+  addEventListener("turbo:load", setHeaderVar);
+  document.readyState === "loading" ? addEventListener("DOMContentLoaded", setHeaderVar) : setHeaderVar();
+</script>

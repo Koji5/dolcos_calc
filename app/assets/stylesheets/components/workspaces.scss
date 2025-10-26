@@ -1,0 +1,35 @@
+/* XL 以上で “カラム独立スクロール & サイドバー静的化” */
+@media (min-width: 1200px) {
+  /* 1) body をスクロールさせない */
+  html, body { height: 100%; }
+  body { overflow: hidden; }
+
+  /* 2) ヘッダー直下のラッパはビューポート高 - ヘッダー高で固定 */
+  .app-shell {
+    min-height: calc(100dvh - var(--app-header-h, 56px));
+    height:     calc(100dvh - var(--app-header-h, 56px));
+    overflow: hidden; /* ここではスクロールさせない */
+  }
+
+  /* 3) 各カラムが自前でスクロール（＝貼り付き） */
+  .app-col {
+    height: 100%;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+
+  /* 4) サイドバーを静的化（offcanvas解除） */
+  #appSidebar.offcanvas-xl {
+    position: static;
+    transform: none !important;
+    visibility: visible !important;
+    display: block !important;
+    width: var(--bs-offcanvas-width, 260px);
+    flex: 0 0 var(--bs-offcanvas-width, 260px);
+    z-index: auto;
+  }
+  #appSidebar .offcanvas-header { display: none !important; }
+}
+@media (min-width: 1400px) {
+  .app-ads-col { width: 280px; flex: 0 0 280px; }
+}

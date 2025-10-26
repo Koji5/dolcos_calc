@@ -1,12 +1,18 @@
-<h1>Dashboard#show</h1>
-<p>Find me in app/views/dashboard/show.html.erb</p>
-<%= link_to destroy_user_session_path,
-            data: { turbo_method: "delete", turbo_confirm: "ログアウトしますか？" },
-            class: "btn btn-outline-secondary form-control" do %>
-<i class="bi bi-box-arrow-right"></i>&nbsp;ログアウト（turboを使用した）
+<%= turbo_frame_tag "main" do %>
+  <h1>Dashboard#show</h1>
+  <p>Find me in app/views/dashboard/show.html.erb</p>
+  <%= link_to destroy_user_session_path,
+              data: {
+                turbo_method: "delete",
+                turbo_frame: "_top",
+                turbo_confirm: "ログアウトしますか？" },
+              class: "btn btn-outline-secondary form-control" do %>
+  <i class="bi bi-box-arrow-right"></i>&nbsp;ログアウト（turboを使用した）
+  <% end %>
+  <%= button_to "ログアウト（buttonを使用した）",
+                destroy_user_session_path,
+                method: :delete,
+                class: "btn btn-outline-secondary form-control",
+                data: { turbo_confirm: "ログアウトしますか？" },
+                form: { data: { turbo_frame: "_top" } } %>
 <% end %>
-<%= button_to "ログアウト（buttonを使用した）",
-              destroy_user_session_path,
-              method: :delete,
-              class: "btn btn-outline-secondary form-control",
-              data: { turbo_confirm: "ログアウトしますか？" } %>
