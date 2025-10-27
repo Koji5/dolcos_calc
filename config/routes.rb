@@ -8,7 +8,7 @@ Rails.application.routes.draw do
   end
 
   get "up" => "rails/health#show", as: :rails_health_check
- 
+
   # ログイン後はworkspaceへ
   authenticated :user do
     root to: "workspaces#show", as: :authenticated_root
