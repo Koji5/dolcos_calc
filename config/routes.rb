@@ -8,8 +8,7 @@ Rails.application.routes.draw do
   end
 
   get "up" => "rails/health#show", as: :rails_health_check
-  get "/guest",   to: "pages#dummy", as: :guest_mode
-
+ 
   # ログイン後はworkspaceへ
   authenticated :user do
     root to: "workspaces#show", as: :authenticated_root
@@ -22,7 +21,6 @@ Rails.application.routes.draw do
 
   resource :dummy, only: :show
   resource :workspace, only: :show
-  resource :dashboard, only: :show, controller: :dashboard
 
   if Rails.env.development?
     # メール一覧が見られる UI（http://localhost:3000/letter_opener）
