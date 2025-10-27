@@ -474,7 +474,7 @@ Rails 8 + Hotwire（Turbo）／Importmap 構成のまま、Devise 本流のネ�
 
 ### 10) Minitest対策
 
-`confirmable` を入れているので、**テストでは「確認済みユーザーでログイン」**してから `get workspace_url` を叩く。
+`confirmable` を入れているので、 **テストでは「確認済みユーザーでログイン」** してから `get workspace_url` を叩く。
 * `test/fixtures/users.yml` を作り、固有の email を入れる
 
    ```yaml
@@ -554,6 +554,67 @@ Rails 8 + Hotwire（Turbo）／Importmap 構成のまま、Devise 本流のネ�
       end
     end
     ```
+
+### 11) 管理者ユーザーの作成
+
+* 初期化ファイル作成
+
+    `config/initializers/admins.rb`
+    ```ruby
+    module AdminConfig
+      module_function
+
+      def admin_emails
+        raw = ENV.fetch("ADMIN_MAIL_ADDRESS_LIST", "")
+        raw.split(",").map { _1.strip.downcase }.reject(&:empty?).uniq
+      end
+
+      def admin?(email)
+        return false if email.blank?
+        admin_emails.include?(email.strip.downcase)
+      end
+    end
+    ```
+
+* Userモデルに“委譲”メソッドを追加
+
+    `app/models/user.rb` に、以下を追記します。
+    ```ruby
+    class User < ApplicationRecord
+      # ...(省略)...
+      # ここだけ追加（環境変数のリストに含まれるかで判定）
+      def admin?
+        AdminConfig.admin?(email)
+      end
+    end
+    ```
+
+* 環境変数の設定
+
+    `.env`を編集する。  
+    例：
+    ```graphql
+    ADMIN_MAIL_ADDRESS_LIST=admin1@example.com,admin2@example.com
+    ```
+
+    * ローカル  
+        `.env`をそのまま編集 ※ **改行コードは LF 推奨**
+
+    * 本番（EC2）  
+        vi等で編集
+        ```bash
+        cd dolcos-calc
+        vi .env
+        ```
+        > **viの基本操作**  
+        >   
+        > * 編集開始：`i` キーを押す（INSERTモードになる）  
+        > * 入力が終わったら `Esc` を押す  
+        > * 保存して終了 → `:wq` → Enter  
+        > * 保存せず終了 → `:q!` → Enter  
+
+        → ビルド
+
 
 ## これでできること
 
