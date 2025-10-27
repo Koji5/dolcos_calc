@@ -31,4 +31,8 @@ class User < ApplicationRecord
   def guest?
     email&.start_with?("guest+")
   end
+
+  def admin?
+    AdminConfig.admin?(email)
+  end
 end

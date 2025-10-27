@@ -1,18 +1,28 @@
 <ul class="list-group list-group-flush">
-  <li class="list-group-item">
-    <i class="bi bi-speedometer2 me-2"></i>
-    <%= link_to "ダッシュボード", dummy_path, data: { turbo_frame: "main" }, class: "link-underline link-underline-opacity-0" %>
-  </li>
-  <li class="list-group-item">
-    <i class="bi bi-person-vcard me-2"></i>
-    <%= link_to "アカウント", dummy_path, data: { turbo_frame: "main" }, class: "link-underline link-underline-opacity-0" %>
-  </li>
-  <li class="list-group-item">
-    <i class="bi bi-calculator me-2"></i>
-    <%= link_to "積立計算", dummy_path, data: { turbo_frame: "main" }, class: "link-underline link-underline-opacity-0" %>
-  </li>
-  <li class="list-group-item">
-    <i class="bi bi-journal-text me-2"></i>
-    <%= link_to "お知らせ", dummy_path, data: { turbo_frame: "main" }, class: "link-underline link-underline-opacity-0" %>
-  </li>
+  <% menu = [
+    { path: ->{ dummy_path }, icon: "calculator",   label: "積立計算",     roles: [:member, :admin, :guest], turbo: true },
+    { path: ->{ dummy_path }, icon: "filetype-py",  label: "Pythonテスト", roles: [:admin],                  turbo: true },
+    { path: ->{ dummy_path }, icon: "journal-text", label: "お知らせ",     roles: [:member, :admin],         turbo: true },
+    { path: ->{ dummy_path }, icon: "shield-lock",  label: "管理",         roles: [:admin],                  turbo: true }
+  ] %>
+
+  <% roles_now =
+      if current_user&.guest?
+        [:guest]
+      elsif current_user&.admin?
+        [:admin]
+      else
+        [:member]
+      end %>
+
+  <% menu.each do |item| %>
+    <% next unless (item[:roles] & roles_now).any? %>
+    <% link_opts = item[:turbo] ? { data:{ turbo_frame:"main"} } : {} %>
+    <li class="list-group-item">
+      <%= link_to item[:path].call, { class:"mb-2 link-offset-2 link-offset-3-hover link-underline link-underline-opacity-0 link-underline-opacity-75-hover" }.merge(link_opts) do %>
+        <i class="bi bi-<%= item[:icon] %> fs-4" aria-label="<%= item[:label] %>"></i>
+        <span class="ms-3"><%= item[:label] %></span>
+      <% end %>
+    </li>
+  <% end %>
 </ul>
