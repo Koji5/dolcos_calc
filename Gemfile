@@ -40,7 +40,7 @@ gem "thruster", require: false
 # Use Active Storage variants [https://guides.rubyonrails.org/active_storage_overview.html#transforming-images]
 # gem "image_processing", "~> 1.2"
 
-gem "aws-sdk-s3", "~> 1.139"
+gem "aws-sdk-s3", "~> 1.202"
 gem "image_processing", "~> 1.12"
 gem "rails-i18n"
 gem "devise-i18n"
