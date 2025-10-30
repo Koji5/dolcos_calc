@@ -1,0 +1,8 @@
+<%= @resource.try(:name) || @email %> 様
+
+ドルコス計算機へのご登録ありがとうございます。
+以下のURLからメールアドレスの確認を完了してください。
+
+<%= confirmation_url(@resource, confirmation_token: @token) %>
+
+※お心当たりがない場合は本メールを破棄してください。

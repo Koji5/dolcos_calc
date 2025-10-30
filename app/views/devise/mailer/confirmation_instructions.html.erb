@@ -1,5 +1,6 @@
-<p>Welcome <%= @email %>!</p>
-
-<p>You can confirm your account email through the link below:</p>
-
-<p><%= link_to 'Confirm my account', confirmation_url(@resource, confirmation_token: @token) %></p>
+<p><%= @resource.try(:name) || @email %> 様</p>
+<p>ドルコス計算機へのご登録ありがとうございます。以下のボタンからメールアドレスの確認を完了してください。</p>
+<p>
+  <%= link_to "メールアドレスを確認する", confirmation_url(@resource, confirmation_token: @token), class: "btn btn-primary" %>
+</p>
+<p>もしこのメールにお心当たりがない場合は、本メールは破棄してください。</p>

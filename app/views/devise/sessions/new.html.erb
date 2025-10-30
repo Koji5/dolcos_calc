@@ -1,26 +1,47 @@
-<h2>ログイン</h2>
-<%= form_with scope: resource_name, url: session_path(resource_name), html: { class: "needs-validation" } do |f| %>
-  <div class="mb-3">
-    <%= f.label :email, "メールアドレス" %>
-    <%= f.email_field :email, autofocus: true, autocomplete: "email", class: "form-control" %>
+<header id="appHeader" class="navbar text-primary-emphasis bg-primary-subtle border border-primary-subtle border-bottom sticky-top">
+  <div class="container-fluid d-flex align-items-center gap-2 ps-2">
+    <!-- 中央: サイトタイトル（xsは中央寄せ＆トランケート、sm以上は左寄せ） -->
+    <%= render "shared/link_to_top", path: unauthenticated_root_path %>
   </div>
+</header>
+<div class="container py-3">
+  <div class="card w-100 mx-auto" style="max-width: 720px;">
+    <h5 class="card-header">ログイン</h5>
+    <%= form_with scope: resource_name, url: session_path(resource_name), html: { class: "needs-validation" } do |f| %>
 
-  <div class="mb-3">
-    <%= f.label :password, "パスワード" %>
-    <%= f.password_field :password, autocomplete: "current-password", class: "form-control" %>
+      <div class="card-body">
+        <div class="row g-3 mb-3 align-items-center">
+          <div class="col-md-3">
+            <%= f.label :email, "メールアドレス" %>
+          </div>
+          <div class="col-md-5">
+            <%= f.email_field :email, autofocus: true, autocomplete: "email", class: "form-control", aria_labelledby: "emailHelpInline" %>
+          </div>
+          <div class="col-md-4"></div>
+        </div>
+
+        <div class="row g-3 mb-3 align-items-center">
+          <div class="col-md-3">
+            <%= f.label :password, "パスワード", class: "col-form-label" %>
+          </div>
+          <div class="col-md-5">
+            <%= f.password_field :password, autocomplete: "new-password", class: "form-control" %>
+          </div>
+          <div class="col-md-4">
+            <% if devise_mapping.rememberable? %>
+              <%= f.check_box :remember_me, class: "form-check-input" %>
+              <%= f.label :remember_me, "ログイン情報を記憶する", class: "form-check-label fw-light" %>
+            <% end %>
+          </div>
+        </div>
+        <div class="row g-3 mb-3 align-items-center">
+          <div class="col-md-12"><%= f.submit "ログイン", class: "btn btn-primary" %></div>
+        </div>
+      </div>
+    <% end %>
   </div>
-
-  <% if devise_mapping.rememberable? %>
-    <div class="form-check mb-3">
-      <%= f.check_box :remember_me, class: "form-check-input" %>
-      <%= f.label :remember_me, "記憶しますか？", class: "form-check-label" %>
-    </div>
-  <% end %>
-
-  <%= f.submit "ログイン", class: "btn btn-primary" %>
-<% end %>
-
-<div class="mt-3">
-  <%= link_to "パスワードをお忘れですか？", new_password_path(resource_name) %><br>
-  <%= link_to "新規登録", new_registration_path(resource_name) %>
+  <div class="w-100 mx-auto mt-3" style="max-width: 720px;">
+    <%= link_to "パスワードをお忘れですか？", new_password_path(resource_name) %><br>
+    <%= link_to "新規登録", new_registration_path(resource_name) %>
+  </div>
 </div>

@@ -12,8 +12,13 @@
         <%= link_to "ログイン",     new_user_session_path,   class: "btn btn-outline-secondary btn-lg px-4" %>
         <%= link_to "ゲストとして利用", guest_sign_in_path, class: "btn btn-link btn-lg text-decoration-none", data: { turbo_method: :post, turbo_frame: "_top" } %>
       </div>
-
-      <div class="mt-4 small text-muted">ログインまで実装</div>
+      <div class="card mt-5 w-75">
+        <div class="card-header">お知らせ</div>
+        <div class="card-body">
+          <p class="card-text">お知らせはまだありません。</p>
+          <p class="card-text"><small class="text-body-secondary">Last updated 3 mins ago</small></p>
+        </div>
+      </div>
     </div>
 
     <div class="col-12 col-lg-6 text-center">
@@ -23,7 +28,7 @@
                       alt: "ドルコスト平均法シミュレーションのイメージ" %>
       </div>
       <div class="form-text mt-2">
-        ストレージテスト用の画像（アセット）を1枚表示しています。
+        ドルコスト平均法は、価格変動のリスクを抑えながら長期的に安定した資産形成ができる投資手法です。
       </div>
     </div>
   </div>

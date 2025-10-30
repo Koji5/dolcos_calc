@@ -1,4 +1,4 @@
-<ul class="list-group list-group-flush">
+<ul class="list-group list-group-flush w-100 me-2">
   <% menu = [
     { path: ->{ dummy_path }, icon: "calculator",   label: "積立計算",     roles: [:member, :admin, :guest], turbo: true },
     { path: ->{ dummy_path }, icon: "filetype-py",  label: "Pythonテスト", roles: [:admin],                  turbo: true },
@@ -19,7 +19,7 @@
     <% next unless (item[:roles] & roles_now).any? %>
     <% link_opts = item[:turbo] ? { data:{ turbo_frame:"main"} } : {} %>
     <li class="list-group-item">
-      <%= link_to item[:path].call, { class:"mb-2 link-offset-2 link-offset-3-hover link-underline link-underline-opacity-0 link-underline-opacity-75-hover" }.merge(link_opts) do %>
+      <%= link_to item[:path].call, { class:"mb-2 link-underline link-underline-opacity-0 link-opacity-25-hover fw-medium" }.merge(link_opts) do %>
         <i class="bi bi-<%= item[:icon] %> fs-4" aria-label="<%= item[:label] %>"></i>
         <span class="ms-3"><%= item[:label] %></span>
       <% end %>

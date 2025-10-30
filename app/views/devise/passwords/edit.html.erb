@@ -1,25 +1,66 @@
-<h2>Change your password</h2>
+<header id="appHeader" class="navbar text-primary-emphasis bg-primary-subtle border border-primary-subtle border-bottom sticky-top">
+  <div class="container-fluid d-flex align-items-center gap-2 ps-2">
+    <!-- 中央: サイトタイトル（xsは中央寄せ＆トランケート、sm以上は左寄せ） -->
+    <%= render "shared/link_to_top", path: unauthenticated_root_path %>
+  </div>
+</header>
 
-<%= form_for(resource, as: resource_name, url: password_path(resource_name), html: { method: :put }) do |f| %>
-  <%= render "devise/shared/error_messages", resource: resource %>
-  <%= f.hidden_field :reset_password_token %>
+<div class="container py-3">
+  <div class="card w-100 mx-auto" style="max-width: 720px;">
+    <h5 class="card-header">新しいパスワードの設定</h5>
 
-  <div class="field">
-    <%= f.label :password, "New password" %><br />
-    <% if @minimum_password_length %>
-      <em>(<%= @minimum_password_length %> characters minimum)</em><br />
+    <%= form_with model: resource, as: resource_name, url: password_path(resource_name), method: :put do |f| %>
+      <div class="card-body">
+        <%= f.hidden_field :reset_password_token %>
+
+        <p class="text-body-secondary small mb-3">
+          登録メール宛に送信されたリンクからこのページに来ています。新しいパスワードを入力してください。
+        </p>
+
+        <div class="row g-3 mb-3 align-items-center">
+          <div class="col-md-3">
+            <%= f.label :password, "新しいパスワード", class: "col-form-label" %>
+          </div>
+          <div class="col-md-5">
+            <%= f.password_field :password,
+                                 autocomplete: "new-password",
+                                 class: "form-control",
+                                 aria_labelledby: "newPasswordHelpInline" %>
+          </div>
+          <div class="col-md-4">
+            <span id="newPasswordHelpInline" class="form-text">
+              <% if @minimum_password_length %>
+                （<%= @minimum_password_length %>文字以上）
+              <% else %>
+                （6文字以上）
+              <% end %>
+            </span>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3 align-items-center">
+          <div class="col-md-3">
+            <%= f.label :password_confirmation, "新しいパスワード（確認）", class: "col-form-label" %>
+          </div>
+          <div class="col-md-5">
+            <%= f.password_field :password_confirmation,
+                                 autocomplete: "new-password",
+                                 class: "form-control",
+                                 aria_labelledby: "passwordConfirmationHelpInline" %>
+          </div>
+          <div class="col-md-4">
+            <span id="passwordConfirmationHelpInline" class="form-text">
+              （同じパスワードを再入力）
+            </span>
+          </div>
+        </div>
+
+        <%= f.submit "パスワードを変更する", class: "btn btn-primary" %>
+      </div>
     <% end %>
-    <%= f.password_field :password, autofocus: true, autocomplete: "new-password" %>
   </div>
 
-  <div class="field">
-    <%= f.label :password_confirmation, "Confirm new password" %><br />
-    <%= f.password_field :password_confirmation, autocomplete: "new-password" %>
+  <div class="w-100 mx-auto mt-3" style="max-width: 720px;">
+    <%= link_to "ログインに戻る", new_session_path(resource_name) %>
   </div>
-
-  <div class="actions">
-    <%= f.submit "Change my password" %>
-  </div>
-<% end %>
-
-<%= render "devise/shared/links" %>
+</div>

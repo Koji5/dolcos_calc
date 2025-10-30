@@ -1,0 +1,17 @@
+<%# 期待する locals:
+#  - path:        文字列URL or *_path(...) の戻り値（必須推奨）
+#  - label:       リンク文言（省略時デフォルト）
+#  - classes:     追加クラス（省略可）
+#  - turbo_frame: Turbo遷移先フレーム（省略時 "_top"）
+-%>
+
+<% label       ||= "ドルコス計算機" %>
+<% classes     ||= "navbar-brand flex-grow-1 text-primary-emphasis text-center text-sm-start m-0 ms-2 fw-bold" %>
+<% turbo_frame ||= "_top" %>
+
+<%= link_to path, class: classes, data: { turbo_frame: turbo_frame } do %>
+  <%= image_tag "top-icon.svg",
+                alt: "",
+                aria: { hidden: true } %>
+  <span class="align-middle ps-2"><%= label %></span>
+<% end %>

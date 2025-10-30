@@ -1,20 +1,58 @@
-<h2>新規登録</h2>
-<%= form_with model: resource, as: resource_name, url: registration_path(resource_name) do |f| %>
-  <div class="mb-3">
-    <%= f.label :email, "メールアドレス" %>
-    <%= f.email_field :email, autofocus: true, autocomplete: "email", class: "form-control" %>
+<header id="appHeader" class="navbar text-primary-emphasis bg-primary-subtle border border-primary-subtle border-bottom sticky-top">
+  <div class="container-fluid d-flex align-items-center gap-2 ps-2">
+    <!-- 中央: サイトタイトル（xsは中央寄せ＆トランケート、sm以上は左寄せ） -->
+    <%= render "shared/link_to_top", path: unauthenticated_root_path %>
   </div>
+</header>
+<div class="container py-3">
+  <div class="card w-100 mx-auto" style="max-width: 720px;">
+    <h5 class="card-header">新規登録</h5>
+    <%= form_with model: resource, as: resource_name, url: registration_path(resource_name) do |f| %>
+      <div class="card-body">
 
-  <div class="mb-3">
-    <%= f.label :password, "パスワード" %>
-    <%= f.password_field :password, autocomplete: "new-password", class: "form-control" %>
-    <small class="text-muted">6文字以上</small>
+        <div class="row g-3 mb-3 align-items-center">
+          <div class="col-md-3">
+            <%= f.label :email, "メールアドレス", class: "col-form-label" %>
+          </div>
+          <div class="col-md-5">
+            <%= f.email_field :email, autofocus: true, autocomplete: "email", class: "form-control", aria_labelledby: "emailHelpInline" %>
+          </div>
+          <div class="col-md-4">
+            <span id="emailHelpInline" class="form-text">
+              （受信可能なメールアドレス）
+            </span>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3 align-items-center">
+          <div class="col-md-3">
+            <%= f.label :password, "パスワード", class: "col-form-label" %>
+          </div>
+          <div class="col-md-5">
+            <%= f.password_field :password, autocomplete: "new-password", class: "form-control", aria_labelledby: "passwordHelpInline" %>
+          </div>
+          <div class="col-md-4">
+            <span id="passwordHelpInline" class="form-text">
+              （6文字以上）
+            </span>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3 align-items-center">
+          <div class="col-md-3">
+            <%= f.label :password_confirmation, "パスワード（確認）", class: "col-form-label" %>
+          </div>
+          <div class="col-md-5">
+            <%= f.password_field :password_confirmation, autocomplete: "new-password", class: "form-control", aria_labelledby: "passwordConfirmationHelpInline" %>
+          </div>
+          <div class="col-md-4">
+            <span id="passwordConfirmationHelpInline" class="form-text">
+              （同じパスワードを再入力）
+            </span>
+          </div>
+        </div>
+        <%= f.submit "登録する", class: "btn btn-primary" %>
+      </div>
+    <% end %>
   </div>
-
-  <div class="mb-3">
-    <%= f.label :password_confirmation, "パスワード（確認）" %>
-    <%= f.password_field :password_confirmation, autocomplete: "new-password", class: "form-control" %>
-  </div>
-
-  <%= f.submit "登録する", class: "btn btn-primary" %>
-<% end %>
+</div>

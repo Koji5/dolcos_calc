@@ -1,8 +1,8 @@
-<header id="appHeader" class="navbar bg-body border-bottom sticky-top">
-  <div class="container-fluid d-flex align-items-center gap-2">
+<header id="appHeader" class="navbar text-primary-emphasis bg-primary-subtle border border-primary-subtle border-bottom sticky-top">
+  <div class="container-fluid d-flex align-items-center gap-2 ps-2">
 
     <!-- 左: ハンバーガー（XL未満のみ表示） -->
-    <button class="btn btn-outline-secondary d-xl-none"
+    <button class="btn text-primary-emphasis bg-primary-subtle border-primary-subtle d-xl-none"
             type="button"
             data-bs-toggle="offcanvas"
             data-bs-target="#appSidebar"
@@ -12,17 +12,16 @@
     </button>
 
     <!-- 中央: サイトタイトル（xsは中央寄せ＆トランケート、sm以上は左寄せ） -->
-    <%= link_to "ドルコス年利計算機", dummy_path,
-                class: "navbar-brand flex-grow-1 text-truncate text-center text-sm-start m-0",
-                data: { turbo_frame: "main" } %>
+    <%= render "shared/link_to_top", path: authenticated_root_path %>
 
     <!-- 右: ユーザードロップダウン（xsはアイコンのみ、md以上でメール表示） -->
     <div class="dropdown">
-      <button class="btn btn-outline-secondary dropdown-toggle d-flex align-items-center"
+      <!--button class="btn btn-outline-secondary dropdown-toggle d-flex align-items-center"-->
+      <button class="btn text-primary-emphasis bg-primary-subtle border-primary-subtle dropdown-toggle d-flex align-items-center"
               type="button" data-bs-toggle="dropdown" aria-expanded="false"
               aria-label="<%= current_user.guest? ? 'ゲストメニュー' : 'ユーザーメニュー' %>">
         <i class="bi bi-person-circle" aria-hidden="true"></i>
-        <span class="d-none d-md-inline ms-2 text-truncate" style="max-width: 28ch;">
+        <span class="d-none d-md-inline ms-2 text-primary-emphasis" style="max-width: 28ch;">
           <% if current_user.guest? %>
             ゲスト
           <% else %>
@@ -91,7 +90,10 @@
          class="offcanvas offcanvas-start offcanvas-xl border-end app-col"
          tabindex="-1"
          aria-labelledby="appSidebarLabel"
-         style="--bs-offcanvas-width: 260px;">
+         style="--bs-offcanvas-width: 260px;"
+         data-controller="workspaces--sidebar"
+         data-workspaces--sidebar-frame-value="main"
+         data-workspaces--sidebar-target-value="#appSidebar">
       <div class="offcanvas-header d-xl-none d-flex align-items-center gap-2">
         <h5 class="offcanvas-title flex-grow-1 mb-0 text-truncate" id="appSidebarLabel">メニュー</h5>
         <button type="button" class="btn btn-outline-secondary ms-auto" data-bs-dismiss="offcanvas" aria-label="閉じる">
