@@ -1,16 +1,36 @@
-<h2>Resend confirmation instructions</h2>
+<header id="appHeader" class="navbar text-primary-emphasis bg-primary-subtle border border-primary-subtle border-bottom sticky-top">
+  <div class="container-fluid d-flex align-items-center gap-2 ps-2">
+    <%= render "shared/link_to_top", path: unauthenticated_root_path %>
+  </div>
+</header>
 
-<%= form_for(resource, as: resource_name, url: confirmation_path(resource_name), html: { method: :post }) do |f| %>
-  <%= render "devise/shared/error_messages", resource: resource %>
+<div class="container py-3">
+  <div class="card w-100 mx-auto" style="max-width: 720px;">
+    <h5 class="card-header">確認メールの再送</h5>
 
-  <div class="field">
-    <%= f.label :email %><br />
-    <%= f.email_field :email, autofocus: true, autocomplete: "email", value: (resource.pending_reconfirmation? ? resource.unconfirmed_email : resource.email) %>
+    <%= form_with scope: resource_name, url: confirmation_path(resource_name) do |f| %>
+      <div class="card-body">
+        <p class="small text-body-secondary mb-3">
+          登録済みのメールアドレスを入力してください。確認用メールを再送します。
+        </p>
+
+        <div class="row g-3 mb-3 align-items-center">
+          <div class="col-md-3">
+            <%= f.label :email, "メールアドレス", class: "col-form-label" %>
+          </div>
+          <div class="col-md-5">
+            <%= f.email_field :email, autofocus: true, autocomplete: "email", class: "form-control" %>
+          </div>
+          <div class="col-md-4"></div>
+        </div>
+
+        <%= f.submit "確認メールを送信", class: "btn btn-primary" %>
+      </div>
+    <% end %>
   </div>
 
-  <div class="actions">
-    <%= f.submit "Resend confirmation instructions" %>
+  <div class="w-100 mx-auto mt-3" style="max-width: 720px;">
+    <%= link_to "ログインに戻る", new_session_path(resource_name) %><br>
+    <%= link_to "新規登録", new_registration_path(resource_name) %>
   </div>
-<% end %>
-
-<%= render "devise/shared/links" %>
+</div>
