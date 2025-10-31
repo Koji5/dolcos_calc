@@ -67,7 +67,7 @@ Rails.application.configure do
   config.action_mailer.delivery_method = :smtp
   config.action_mailer.smtp_settings = Rails.application.credentials.smtp
   config.action_mailer.default_options = {
-    from: "noreply@dolcos-calc.com"
+    from: "no-reply@dolcos-calc.com"
   }
 
   # Enable locale fallbacks for I18n (makes lookups for any locale fall back to
