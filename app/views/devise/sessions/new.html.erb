@@ -1,9 +1,5 @@
-<header id="appHeader" class="navbar text-primary-emphasis bg-primary-subtle border border-primary-subtle border-bottom sticky-top">
-  <div class="container-fluid d-flex align-items-center gap-2 ps-2">
-    <!-- 中央: サイトタイトル（xsは中央寄せ＆トランケート、sm以上は左寄せ） -->
-    <%= render "shared/link_to_top", path: unauthenticated_root_path %>
-  </div>
-</header>
+<%= render "devise/shared/header" %>
+
 <div class="container py-3">
   <div class="card w-100 mx-auto" style="max-width: 720px;">
     <h5 class="card-header">ログイン</h5>

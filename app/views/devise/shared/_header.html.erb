@@ -1,0 +1,7 @@
+<header id="appHeader" class="navbar text-primary-emphasis bg-primary-subtle border border-primary-subtle border-bottom sticky-top">
+  <div class="container-fluid d-flex align-items-center gap-2 ps-2">
+    <%= render "shared/link_to_top", path: unauthenticated_root_path %>
+  </div>
+</header>
+
+<div id="alert"><% unless turbo_frame_request? %><%= render "shared/alert" %><% end %></div>

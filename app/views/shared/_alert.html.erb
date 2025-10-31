@@ -1,0 +1,11 @@
+<% flash.each do |type, messages| %>
+  <% Array(messages).each do |message| %>
+    <div class="alert alert-<%= bootstrap_class_for(type) %> alert-dismissible fade show my-0"
+         role="alert"
+         data-controller="auto-dismiss"
+         <%= raw("data-auto-dismiss-delay-value=\"5000\"") if flash_auto_dismiss?(type) %>>
+      <%= message %>
+      <button type="button" class="btn-close" data-action="auto-dismiss#dismiss" aria-label="閉じる"></button>
+    </div>
+  <% end %>
+<% end %>

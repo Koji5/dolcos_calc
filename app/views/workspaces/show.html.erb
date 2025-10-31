@@ -82,6 +82,8 @@
   </div>
 </header>
 
+<div id="alert"><% unless turbo_frame_request? %><%= render "shared/alert" %><% end %></div>
+
 <div class="container-fluid">
   <!-- ★ ヘッダー直下のラッパ。XL以上は固定高＆内部だけスクロール -->
   <div class="app-shell d-xl-flex">
