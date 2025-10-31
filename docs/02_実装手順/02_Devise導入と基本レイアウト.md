@@ -248,7 +248,7 @@ Rails 8 + Hotwire（Turbo）／Importmap 構成のまま、Devise 本流のネ�
 
 * ユーザー切替時の処理：
 
-  `app/controllers/application_controller.rb`
+  追記： `app/controllers/application_controller.rb`
 
     ```ruby
     # ユーザー切替時の処理
@@ -291,17 +291,24 @@ Rails 8 + Hotwire（Turbo）／Importmap 構成のまま、Devise 本流のネ�
   <% end %>
   ```
 
+* `app\views\devise\shared\_header.html.erb`
+
+    ```erb
+    <header id="appHeader" class="navbar text-primary-emphasis bg-primary-subtle border border-primary-subtle border-bottom sticky-top">
+      <div class="container-fluid d-flex align-items-center gap-2 ps-2">
+        <%= render "shared/link_to_top", path: unauthenticated_root_path %>
+      </div>
+    </header>
+
+    <div id="alert"><% unless turbo_frame_request? %><%= render "shared/alert" %><% end %></div>
+    ```
+
 * ログイン画面  
 
   `app/views/devise/sessions/new.html.erb`（`form_with` 化・日本語化）
 
   ```erb
-  <header id="appHeader" class="navbar text-primary-emphasis bg-primary-subtle border border-primary-subtle border-bottom sticky-top">
-    <div class="container-fluid d-flex align-items-center gap-2 ps-2">
-      <!-- 中央: サイトタイトル（xsは中央寄せ＆トランケート、sm以上は左寄せ） -->
-      <%= render "shared/link_to_top", path: unauthenticated_root_path %>
-    </div>
-  </header>
+  <%= render "devise/shared/header" %>
   <div class="container py-3">
     <div class="card w-100 mx-auto" style="max-width: 720px;">
       <h5 class="card-header">ログイン</h5>
@@ -351,12 +358,7 @@ Rails 8 + Hotwire（Turbo）／Importmap 構成のまま、Devise 本流のネ�
   `app/views/devise/registrations/new.html.erb`（`form_with` 化・日本語化）
 
   ```erb
-  <header id="appHeader" class="navbar text-primary-emphasis bg-primary-subtle border border-primary-subtle border-bottom sticky-top">
-    <div class="container-fluid d-flex align-items-center gap-2 ps-2">
-      <!-- 中央: サイトタイトル（xsは中央寄せ＆トランケート、sm以上は左寄せ） -->
-      <%= render "shared/link_to_top", path: unauthenticated_root_path %>
-    </div>
-  </header>
+  <%= render "devise/shared/header" %>
   <div class="container py-3">
     <div class="card w-100 mx-auto" style="max-width: 720px;">
       <h5 class="card-header">新規登録</h5>
@@ -416,12 +418,7 @@ Rails 8 + Hotwire（Turbo）／Importmap 構成のまま、Devise 本流のネ�
   `app\views\devise\confirmations\new.html.erb`（`form_with` 化・日本語化）
 
   ```erb
-  <header id="appHeader" class="navbar text-primary-emphasis bg-primary-subtle border border-primary-subtle border-bottom sticky-top">
-    <div class="container-fluid d-flex align-items-center gap-2 ps-2">
-      <%= render "shared/link_to_top", path: unauthenticated_root_path %>
-    </div>
-  </header>
-
+  <%= render "devise/shared/header" %>
   <div class="container py-3">
     <div class="card w-100 mx-auto" style="max-width: 720px;">
       <h5 class="card-header">確認メールの再送</h5>
@@ -459,13 +456,7 @@ Rails 8 + Hotwire（Turbo）／Importmap 構成のまま、Devise 本流のネ�
   `app\views\devise\passwords\new.html.erb`（`form_with` 化・日本語化）
 
   ```erb
-  <header id="appHeader" class="navbar text-primary-emphasis bg-primary-subtle border border-primary-subtle border-bottom sticky-top">
-    <div class="container-fluid d-flex align-items-center gap-2 ps-2">
-      <!-- 中央: サイトタイトル（xsは中央寄せ＆トランケート、sm以上は左寄せ） -->
-      <%= render "shared/link_to_top", path: unauthenticated_root_path %>
-    </div>
-  </header>
-
+  <%= render "devise/shared/header" %>
   <div class="container py-3">
     <div class="card w-100 mx-auto" style="max-width: 720px;">
       <h5 class="card-header">パスワード再設定</h5>
@@ -511,13 +502,7 @@ Rails 8 + Hotwire（Turbo）／Importmap 構成のまま、Devise 本流のネ�
   `app\views\devise\passwords\edit.html.erb`（`form_with` 化・日本語化）
 
   ```erb
-  <header id="appHeader" class="navbar text-primary-emphasis bg-primary-subtle border border-primary-subtle border-bottom sticky-top">
-    <div class="container-fluid d-flex align-items-center gap-2 ps-2">
-      <!-- 中央: サイトタイトル（xsは中央寄せ＆トランケート、sm以上は左寄せ） -->
-      <%= render "shared/link_to_top", path: unauthenticated_root_path %>
-    </div>
-  </header>
-
+  <%= render "devise/shared/header" %>
   <div class="container py-3">
     <div class="card w-100 mx-auto" style="max-width: 720px;">
       <h5 class="card-header">新しいパスワードの設定</h5>
@@ -657,9 +642,12 @@ Rails 8 + Hotwire（Turbo）／Importmap 構成のまま、Devise 本流のネ�
 * `app\views\pages\home.html.erb`
 
     ```erb
+    <div id="alert"><% unless turbo_frame_request? %><%= render "shared/alert" %><% end %></div>
+    ...
     <%= link_to "新規登録", new_user_registration_path, class: "btn btn-primary btn-lg px-4" %>
     <%= link_to "ログイン",     new_user_session_path,   class: "btn btn-outline-secondary btn-lg px-4" %>
     <%= link_to "ゲストとして利用", guest_sign_in_path, class: "btn btn-link btn-lg text-decoration-none", data: { turbo_method: :post, turbo_frame: "_top" } %>
+    ...
     ```
 
 * `app\controllers\workspaces_controller.rb`
@@ -758,6 +746,8 @@ Rails 8 + Hotwire（Turbo）／Importmap 構成のまま、Devise 本流のネ�
 
     </div>
   </header>
+
+  <div id="alert"><% unless turbo_frame_request? %><%= render "shared/alert" %><% end %></div>
 
   <div class="container-fluid">
     <!-- ★ ヘッダー直下のラッパ。XL以上は固定高＆内部だけスクロール -->
@@ -948,6 +938,11 @@ Rails 8 + Hotwire（Turbo）／Importmap 構成のまま、Devise 本流のネ�
     ```ruby
     class DummiesController < ApplicationController
       def show
+        render_flash_and_replace(
+          template: "dummies/show",
+          message: "dummies/showに遷移しました。",
+          type: :notice
+        )
       end
     end
     ```
@@ -955,11 +950,9 @@ Rails 8 + Hotwire（Turbo）／Importmap 構成のまま、Devise 本流のネ�
 * `app\views\dummies\show.html.erb`
 
   ```erb
-  <%= turbo_frame_tag "main" do %>
-    <h1>Dummies#show</h1>
-    <p>Find me in app/views/dummies/show.html.erb</p>
-    <p>Turbo Frame 内にレンダリングされています。</p>
-  <% end %>
+  <h1>Dummies#show</h1>
+  <p>Find me in app/views/dummies/show.html.erb</p>
+  <p>Turbo Frame 内にレンダリングされています。</p>
   ```
 
 * `app\controllers\users\sessions_controller.rb`：新規作成する
