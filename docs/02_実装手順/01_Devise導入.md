@@ -9,8 +9,11 @@ Rails 8 + Hotwire（Turbo）／Importmap 構成のまま、Devise 本流のネ�
 * 記憶しますか？（Rememberable）
 * Trackable  
 * ゲストログイン  
+* 管理者ログイン（初期）  
 
-を有効化する最小構成を一気に作ります。（コマンドはすべて **docker compose 経由** です）
+を有効化する最小構成を一気に作ります。（コマンドはすべて **docker compose 経由** です）  
+
+> 基本レイアウトも同時に作成します。
 
 ---
 
@@ -112,7 +115,54 @@ Rails 8 + Hotwire（Turbo）／Importmap 構成のまま、Devise 本流のネ�
    docker compose exec app rails db:migrate
    ```
 
-### 5) User モデルの有効モジュールを宣言、およびゲストログイン設定
+### 5) 管理者ユーザーの作成
+
+* 初期化ファイル作成
+
+    `config/initializers/admins.rb`
+    ```ruby
+    module AdminConfig
+      module_function
+
+      def admin_emails
+        raw = ENV.fetch("ADMIN_MAIL_ADDRESS_LIST", "")
+        raw.split(",").map { _1.strip.downcase }.reject(&:empty?).uniq
+      end
+
+      def admin?(email)
+        return false if email.blank?
+        admin_emails.include?(email.strip.downcase)
+      end
+    end
+    ```
+
+* 環境変数の設定
+
+    `.env`を編集する。  
+    例：
+    ```graphql
+    ADMIN_MAIL_ADDRESS_LIST=admin1@example.com,admin2@example.com
+    ```
+
+    * ローカル  
+        `.env`をそのまま編集 ※ **改行コードは LF 推奨**
+
+    * 本番（EC2）  
+        vi等で編集
+        ```bash
+        cd dolcos-calc
+        vi .env
+        ```
+        > **viの基本操作**  
+        >   
+        > * 編集開始：`i` キーを押す（INSERTモードになる）  
+        > * 入力が終わったら `Esc` を押す  
+        > * 保存して終了 → `:wq` → Enter  
+        > * 保存せず終了 → `:q!` → Enter  
+
+        → ビルド
+
+### 6) User モデルの有効モジュールを宣言、およびゲストログイン設定
 
 * `app/models/user.rb`
 
@@ -150,16 +200,21 @@ Rails 8 + Hotwire（Turbo）／Importmap 構成のまま、Devise 本流のネ�
       def guest?
         email&.start_with?("guest+")
       end
+
+      def admin?
+        AdminConfig.admin?(email)
+      end
     end
     ```
 
-### 6) ルーティング
+### 7) ルーティング
 
 * まずシンプルなコントローラを用意：
 
    ```bash
    docker compose exec app rails g controller Pages home
    docker compose exec app rails g controller Workspaces show
+   docker compose exec app rails g controller Dummies show
    ```
 
 * `config/routes.rb`
@@ -187,6 +242,7 @@ Rails 8 + Hotwire（Turbo）／Importmap 構成のまま、Devise 本流のネ�
       end
 
       resource :workspace, only: :show
+      resource :dummy, only: :show
     end
     ```
 
@@ -205,91 +261,387 @@ Rails 8 + Hotwire（Turbo）／Importmap 構成のまま、Devise 本流のネ�
     end
     ```
 
-### 7) Devise の ビューとフォーム
+### 8) Devise の ビューとフォーム
 
 * Devise の標準テンプレは `form_for` ですが、**本プロジェクト方針（form_withのみ）** に合わせ、最低限の画面だけ置き換えます。
-（当面はログインとサインアップだけ変えれば十分）
 
    ```bash
    docker compose exec app rails g devise:views
    ```
 
-* `app/views/devise/sessions/new.html.erb`（抜粋：`form_with` 化）
+* `app\views\shared\_link_to_top.html.erb`
 
-   ```erb
-   <h2>ログイン</h2>
-   <%= form_with scope: resource_name, url: session_path(resource_name), html: { class: "needs-validation" } do |f| %>
-     <div class="mb-3">
-       <%= f.label :email, "メールアドレス" %>
-       <%= f.email_field :email, autofocus: true, autocomplete: "email", class: "form-control" %>
-     </div>
+  ```erb
+  <%# 期待する locals:
+  #  - path:        文字列URL or *_path(...) の戻り値（必須推奨）
+  #  - label:       リンク文言（省略時デフォルト）
+  #  - classes:     追加クラス（省略可）
+  #  - turbo_frame: Turbo遷移先フレーム（省略時 "_top"）
+  -%>
 
-     <div class="mb-3">
-       <%= f.label :password, "パスワード" %>
-       <%= f.password_field :password, autocomplete: "current-password", class: "form-control" %>
-     </div>
+  <% label       ||= "ドルコス計算機" %>
+  <% classes     ||= "navbar-brand flex-grow-1 text-primary-emphasis text-center text-sm-start m-0 ms-2 fw-bold" %>
+  <% turbo_frame ||= "_top" %>
 
-     <% if devise_mapping.rememberable? %>
-       <div class="form-check mb-3">
-         <%= f.check_box :remember_me, class: "form-check-input" %>
-         <%= f.label :remember_me, "記憶しますか？", class: "form-check-label" %>
-       </div>
-     <% end %>
+  <%= link_to path, class: classes, data: { turbo_frame: turbo_frame } do %>
+    <%= image_tag "top-icon.svg",
+                  alt: "",
+                  aria: { hidden: true } %>
+    <span class="align-middle ps-2"><%= label %></span>
+  <% end %>
+  ```
 
-     <%= f.submit "ログイン", class: "btn btn-primary" %>
-   <% end %>
+* ログイン画面  
 
-   <div class="mt-3">
-     <%= link_to "パスワードをお忘れですか？", new_password_path(resource_name) %><br>
-     <%= link_to "新規登録", new_registration_path(resource_name) %>
-   </div>
-   ```
+  `app/views/devise/sessions/new.html.erb`（`form_with` 化・日本語化）
 
-* `app/views/devise/registrations/new.html.erb`（抜粋）
+  ```erb
+  <header id="appHeader" class="navbar text-primary-emphasis bg-primary-subtle border border-primary-subtle border-bottom sticky-top">
+    <div class="container-fluid d-flex align-items-center gap-2 ps-2">
+      <!-- 中央: サイトタイトル（xsは中央寄せ＆トランケート、sm以上は左寄せ） -->
+      <%= render "shared/link_to_top", path: unauthenticated_root_path %>
+    </div>
+  </header>
+  <div class="container py-3">
+    <div class="card w-100 mx-auto" style="max-width: 720px;">
+      <h5 class="card-header">ログイン</h5>
+      <%= form_with scope: resource_name, url: session_path(resource_name), html: { class: "needs-validation" } do |f| %>
 
-   ```erb
-   <h2>新規登録</h2>
-   <%= form_with model: resource, as: resource_name, url: registration_path(resource_name) do |f| %>
-     <div class="mb-3">
-       <%= f.label :email, "メールアドレス" %>
-       <%= f.email_field :email, autofocus: true, autocomplete: "email", class: "form-control" %>
-     </div>
+        <div class="card-body">
+          <div class="row g-3 mb-3 align-items-center">
+            <div class="col-md-3">
+              <%= f.label :email, "メールアドレス" %>
+            </div>
+            <div class="col-md-5">
+              <%= f.email_field :email, autofocus: true, autocomplete: "email", class: "form-control", aria_labelledby: "emailHelpInline" %>
+            </div>
+            <div class="col-md-4"></div>
+          </div>
 
-     <div class="mb-3">
-       <%= f.label :password, "パスワード" %>
-       <%= f.password_field :password, autocomplete: "new-password", class: "form-control" %>
-       <small class="text-muted">6文字以上</small>
-     </div>
+          <div class="row g-3 mb-3 align-items-center">
+            <div class="col-md-3">
+              <%= f.label :password, "パスワード", class: "col-form-label" %>
+            </div>
+            <div class="col-md-5">
+              <%= f.password_field :password, autocomplete: "new-password", class: "form-control" %>
+            </div>
+            <div class="col-md-4">
+              <% if devise_mapping.rememberable? %>
+                <%= f.check_box :remember_me, class: "form-check-input" %>
+                <%= f.label :remember_me, "ログイン情報を記憶する", class: "form-check-label fw-light" %>
+              <% end %>
+            </div>
+          </div>
+          <div class="row g-3 mb-3 align-items-center">
+            <div class="col-md-12"><%= f.submit "ログイン", class: "btn btn-primary" %></div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+    <div class="w-100 mx-auto mt-3" style="max-width: 720px;">
+      <%= link_to "パスワードをお忘れですか？", new_password_path(resource_name) %><br>
+      <%= link_to "確認メールを再送", new_confirmation_path(resource_name) %><br>
+      <%= link_to "新規登録", new_registration_path(resource_name) %>
+    </div>
+  </div>
+  ```
 
-     <div class="mb-3">
-       <%= f.label :password_confirmation, "パスワード（確認）" %>
-       <%= f.password_field :password_confirmation, autocomplete: "new-password", class: "form-control" %>
-     </div>
+* 新規登録画面  
 
-     <%= f.submit "登録する", class: "btn btn-primary" %>
-   <% end %>
-   ```
+  `app/views/devise/registrations/new.html.erb`（`form_with` 化・日本語化）
 
-   > 以外の Devise 画面（パスワード再設定、確認再送 等）は後で順次 `form_with` に置換でOK。  
+  ```erb
+  <header id="appHeader" class="navbar text-primary-emphasis bg-primary-subtle border border-primary-subtle border-bottom sticky-top">
+    <div class="container-fluid d-flex align-items-center gap-2 ps-2">
+      <!-- 中央: サイトタイトル（xsは中央寄せ＆トランケート、sm以上は左寄せ） -->
+      <%= render "shared/link_to_top", path: unauthenticated_root_path %>
+    </div>
+  </header>
+  <div class="container py-3">
+    <div class="card w-100 mx-auto" style="max-width: 720px;">
+      <h5 class="card-header">新規登録</h5>
+      <%= form_with model: resource, as: resource_name, url: registration_path(resource_name) do |f| %>
+        <div class="card-body">
 
-* **パスワード再設定メール送信**
+          <div class="row g-3 mb-3 align-items-center">
+            <div class="col-md-3">
+              <%= f.label :email, "メールアドレス", class: "col-form-label" %>
+            </div>
+            <div class="col-md-5">
+              <%= f.email_field :email, autofocus: true, autocomplete: "email", class: "form-control", aria_labelledby: "emailHelpInline" %>
+            </div>
+            <div class="col-md-4">
+              <span id="emailHelpInline" class="form-text">
+                （受信可能なメールアドレス）
+              </span>
+            </div>
+          </div>
 
-    ```erb
-    <%= form_with scope: resource_name, url: password_path(resource_name) do |f| %>
-      ...
-    <% end %>
-    ```
+          <div class="row g-3 mb-3 align-items-center">
+            <div class="col-md-3">
+              <%= f.label :password, "パスワード", class: "col-form-label" %>
+            </div>
+            <div class="col-md-5">
+              <%= f.password_field :password, autocomplete: "new-password", class: "form-control", aria_labelledby: "passwordHelpInline" %>
+            </div>
+            <div class="col-md-4">
+              <span id="passwordHelpInline" class="form-text">
+                （6文字以上）
+              </span>
+            </div>
+          </div>
 
-* **パスワード変更（トークン付き）**
+          <div class="row g-3 mb-3 align-items-center">
+            <div class="col-md-3">
+              <%= f.label :password_confirmation, "パスワード（確認）", class: "col-form-label" %>
+            </div>
+            <div class="col-md-5">
+              <%= f.password_field :password_confirmation, autocomplete: "new-password", class: "form-control", aria_labelledby: "passwordConfirmationHelpInline" %>
+            </div>
+            <div class="col-md-4">
+              <span id="passwordConfirmationHelpInline" class="form-text">
+                （同じパスワードを再入力）
+              </span>
+            </div>
+          </div>
+          <%= f.submit "登録する", class: "btn btn-primary" %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+  ```
 
-    ```erb
-    <%= form_with model: resource, as: resource_name, url: password_path(resource_name) do |f| %>
-      <%= f.hidden_field :reset_password_token %>
-      ...
-    <% end %>
-    ```
+* 確認メールの再送画面  
 
+  `app\views\devise\confirmations\new.html.erb`（`form_with` 化・日本語化）
+
+  ```erb
+  <header id="appHeader" class="navbar text-primary-emphasis bg-primary-subtle border border-primary-subtle border-bottom sticky-top">
+    <div class="container-fluid d-flex align-items-center gap-2 ps-2">
+      <%= render "shared/link_to_top", path: unauthenticated_root_path %>
+    </div>
+  </header>
+
+  <div class="container py-3">
+    <div class="card w-100 mx-auto" style="max-width: 720px;">
+      <h5 class="card-header">確認メールの再送</h5>
+
+      <%= form_with scope: resource_name, url: confirmation_path(resource_name) do |f| %>
+        <div class="card-body">
+          <p class="small text-body-secondary mb-3">
+            登録済みのメールアドレスを入力してください。確認用メールを再送します。
+          </p>
+
+          <div class="row g-3 mb-3 align-items-center">
+            <div class="col-md-3">
+              <%= f.label :email, "メールアドレス", class: "col-form-label" %>
+            </div>
+            <div class="col-md-5">
+              <%= f.email_field :email, autofocus: true, autocomplete: "email", class: "form-control" %>
+            </div>
+            <div class="col-md-4"></div>
+          </div>
+
+          <%= f.submit "確認メールを送信", class: "btn btn-primary" %>
+        </div>
+      <% end %>
+    </div>
+
+    <div class="w-100 mx-auto mt-3" style="max-width: 720px;">
+      <%= link_to "ログインに戻る", new_session_path(resource_name) %><br>
+      <%= link_to "新規登録", new_registration_path(resource_name) %>
+    </div>
+  </div>
+  ```
+
+* パスワード再設定画面  
+
+  `app\views\devise\passwords\new.html.erb`（`form_with` 化・日本語化）
+
+  ```erb
+  <header id="appHeader" class="navbar text-primary-emphasis bg-primary-subtle border border-primary-subtle border-bottom sticky-top">
+    <div class="container-fluid d-flex align-items-center gap-2 ps-2">
+      <!-- 中央: サイトタイトル（xsは中央寄せ＆トランケート、sm以上は左寄せ） -->
+      <%= render "shared/link_to_top", path: unauthenticated_root_path %>
+    </div>
+  </header>
+
+  <div class="container py-3">
+    <div class="card w-100 mx-auto" style="max-width: 720px;">
+      <h5 class="card-header">パスワード再設定</h5>
+
+      <%= form_with scope: resource_name, url: password_path(resource_name), method: :post do |f| %>
+        <div class="card-body">
+          <p class="text-body-secondary small mb-3">
+            登録済みのメールアドレスを入力してください。パスワード再設定用のリンクをお送りします。
+          </p>
+
+          <div class="row g-3 mb-3 align-items-center">
+            <div class="col-md-3">
+              <%= f.label :email, "メールアドレス", class: "col-form-label" %>
+            </div>
+            <div class="col-md-5">
+              <%= f.email_field :email,
+                                autofocus: true,
+                                autocomplete: "email",
+                                class: "form-control",
+                                aria_labelledby: "passwordEmailHelpInline" %>
+            </div>
+            <div class="col-md-4">
+              <span id="passwordEmailHelpInline" class="form-text">
+                （受信可能なメールアドレス）
+              </span>
+            </div>
+          </div>
+
+          <%= f.submit "再設定メールを送信", class: "btn btn-primary" %>
+        </div>
+      <% end %>
+    </div>
+
+    <div class="w-100 mx-auto mt-3" style="max-width: 720px;">
+      <%= link_to "ログインに戻る", new_session_path(resource_name) %><br>
+      <%= link_to "新規登録", new_registration_path(resource_name) %>
+    </div>
+  </div>
+  ```
+
+* 新しいパスワードの設定画面  
+
+  `app\views\devise\passwords\edit.html.erb`（`form_with` 化・日本語化）
+
+  ```erb
+  <header id="appHeader" class="navbar text-primary-emphasis bg-primary-subtle border border-primary-subtle border-bottom sticky-top">
+    <div class="container-fluid d-flex align-items-center gap-2 ps-2">
+      <!-- 中央: サイトタイトル（xsは中央寄せ＆トランケート、sm以上は左寄せ） -->
+      <%= render "shared/link_to_top", path: unauthenticated_root_path %>
+    </div>
+  </header>
+
+  <div class="container py-3">
+    <div class="card w-100 mx-auto" style="max-width: 720px;">
+      <h5 class="card-header">新しいパスワードの設定</h5>
+
+      <%= form_with model: resource, as: resource_name, url: password_path(resource_name), method: :put do |f| %>
+        <div class="card-body">
+          <%= f.hidden_field :reset_password_token %>
+
+          <p class="text-body-secondary small mb-3">
+            登録メール宛に送信されたリンクからこのページに来ています。新しいパスワードを入力してください。
+          </p>
+
+          <div class="row g-3 mb-3 align-items-center">
+            <div class="col-md-3">
+              <%= f.label :password, "新しいパスワード", class: "col-form-label" %>
+            </div>
+            <div class="col-md-5">
+              <%= f.password_field :password,
+                                  autocomplete: "new-password",
+                                  class: "form-control",
+                                  aria_labelledby: "newPasswordHelpInline" %>
+            </div>
+            <div class="col-md-4">
+              <span id="newPasswordHelpInline" class="form-text">
+                <% if @minimum_password_length %>
+                  （<%= @minimum_password_length %>文字以上）
+                <% else %>
+                  （6文字以上）
+                <% end %>
+              </span>
+            </div>
+          </div>
+
+          <div class="row g-3 mb-3 align-items-center">
+            <div class="col-md-3">
+              <%= f.label :password_confirmation, "新しいパスワード（確認）", class: "col-form-label" %>
+            </div>
+            <div class="col-md-5">
+              <%= f.password_field :password_confirmation,
+                                  autocomplete: "new-password",
+                                  class: "form-control",
+                                  aria_labelledby: "passwordConfirmationHelpInline" %>
+            </div>
+            <div class="col-md-4">
+              <span id="passwordConfirmationHelpInline" class="form-text">
+                （同じパスワードを再入力）
+              </span>
+            </div>
+          </div>
+
+          <%= f.submit "パスワードを変更する", class: "btn btn-primary" %>
+        </div>
+      <% end %>
+    </div>
+
+    <div class="w-100 mx-auto mt-3" style="max-width: 720px;">
+      <%= link_to "ログインに戻る", new_session_path(resource_name) %>
+    </div>
+  </div>
+  ```
 ---
+
+### 9) Devise の メール日本語化
+
+**件名はI18nのキーで日本語化されますが、本文はDeviseのデフォルトviewが英語固定**なので、そのままだと英語になります。  
+本文も日本語にするには **Deviseのメールviewを上書き**してください。
+> * `rails g devise:views -v mailer` は通常 **HTML版（`.html.erb`）のみ**を出します。  
+> * **テキスト版（`.text.erb`）も配信したい**場合は、自分でファイルを追加してください。  
+> * **`.html.erb` だけでも送信可**。ただし可読性・迷惑メール判定・アクセシビリティの観点で、テキスト版も用意するのがおすすめです。  
+> * 両方置くと **ActionMailer が自動で multipart（text + html）** にして送ります。  
+> * HTML版にレイアウトを当てている場合、**テキスト用レイアウト**（`app/views/layouts/mailer.text.erb`）も置けばテキストメールにも適用できます。  
+> * 件名は I18n のキーで日本語化されます（`devise-i18n` を導入していれば既に日本語）。  
+
+* メールアドレス確認（Confirmable）  
+
+  `app/views/devise/mailer/confirmation_instructions.html.erb`
+
+  ```erb
+  <p><%= @resource.try(:name) || @email %> 様</p>
+  <p>ドルコス計算機へのご登録ありがとうございます。以下のボタンからメールアドレスの確認を完了してください。</p>
+  <p>
+    <%= link_to "メールアドレスを確認する", confirmation_url(@resource, confirmation_token: @token), class: "btn btn-primary" %>
+  </p>
+  <p>もしこのメールにお心当たりがない場合は、本メールは破棄してください。</p>
+  ```
+
+  `app/views/devise/mailer/confirmation_instructions.text.erb`
+
+  ```text
+  <%= @resource.try(:name) || @email %> 様
+
+  ドルコス計算機へのご登録ありがとうございます。
+  以下のURLからメールアドレスの確認を完了してください。
+
+  <%= confirmation_url(@resource, confirmation_token: @token) %>
+
+  ※お心当たりがない場合は本メールを破棄してください。
+  ```
+
+* パスワード再設定
+
+  `app/views/devise/mailer/reset_password_instructions.html.erb`
+
+  ```erb
+  <p><%= @resource.try(:name) || @email %> 様</p>
+  <p>パスワード再設定のご依頼を受け付けました。以下のボタンから再設定手続きを行ってください。</p>
+  <p>
+    <%= link_to "パスワードを再設定する", edit_password_url(@resource, reset_password_token: @token), class: "btn btn-primary" %>
+  </p>
+  <p>この操作にお心当たりがない場合は、本メールは破棄してください。上記リンクを開くまでパスワードは変更されません。</p>
+  ```
+
+  `app/views/devise/mailer/reset_password_instructions.text.erb`
+
+  ```text
+  <%= @resource.try(:name) || @email %> 様
+
+  パスワード再設定のご依頼を受け付けました。
+  以下のURLから再設定手続きを行ってください。
+
+  <%= edit_password_url(@resource, reset_password_token: @token) %>
+
+  ※お心当たりがない場合は本メールを破棄してください。
+  ```
 
 ### 10) その他のビューとコントローラー
 
@@ -320,15 +672,278 @@ Rails 8 + Hotwire（Turbo）／Importmap 構成のまま、Devise 本流のネ�
     end
     ```
 
-* `app\views\workspaces\show.html.erb`
+* `app\views\workspaces\show.html.erb`（レイアウトまで一気に）
 
-    ```erb
-    <%= turbo_frame_tag "main", src: dummy_path, loading: "lazy" do %>
-      <div class="p-3 text-muted">読み込み中...</div>
+  ```erb
+  <header id="appHeader" class="navbar text-primary-emphasis bg-primary-subtle border border-primary-subtle border-bottom sticky-top">
+    <div class="container-fluid d-flex align-items-center gap-2 ps-2">
+
+      <!-- 左: ハンバーガー（XL未満のみ表示） -->
+      <button class="btn text-primary-emphasis bg-primary-subtle border-primary-subtle d-xl-none"
+              type="button"
+              data-bs-toggle="offcanvas"
+              data-bs-target="#appSidebar"
+              aria-controls="appSidebar"
+              aria-label="メニューを開く">
+        <i class="bi bi-list" aria-hidden="true"></i>
+      </button>
+
+      <!-- 中央: サイトタイトル（xsは中央寄せ＆トランケート、sm以上は左寄せ） -->
+      <%= render "shared/link_to_top", path: authenticated_root_path %>
+
+      <!-- 右: ユーザードロップダウン（xsはアイコンのみ、md以上でメール表示） -->
+      <div class="dropdown">
+        <!--button class="btn btn-outline-secondary dropdown-toggle d-flex align-items-center"-->
+        <button class="btn text-primary-emphasis bg-primary-subtle border-primary-subtle dropdown-toggle d-flex align-items-center"
+                type="button" data-bs-toggle="dropdown" aria-expanded="false"
+                aria-label="<%= current_user.guest? ? 'ゲストメニュー' : 'ユーザーメニュー' %>">
+          <i class="bi bi-person-circle" aria-hidden="true"></i>
+          <span class="d-none d-md-inline ms-2 text-primary-emphasis" style="max-width: 28ch;">
+            <% if current_user.guest? %>
+              ゲスト
+            <% else %>
+              <%= current_user.email %>
+            <% end %>
+          </span>
+
+        </button>
+
+        <ul class="dropdown-menu dropdown-menu-end">
+          <% if current_user.guest? %>
+            <!-- ゲスト用：設定は省略or読み取り専用にするならリンクなしでもOK -->
+            <li>
+              <%= link_to destroy_user_session_path(redirect: "sign_in"),
+                          data: { turbo_method: :delete, turbo_frame: "_top",
+                                  turbo_confirm: "ゲストを終了してログイン画面へ進みます。よろしいですか？" },
+                          class: "dropdown-item" do %>
+                <i class="bi bi-arrow-left-right me-2"></i> ログイン
+              <% end %>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <%= link_to destroy_user_session_path(redirect: "sign_up"),
+                          class: "dropdown-item",
+                          data: { turbo_method: :delete, turbo_frame: "_top",
+                                  turbo_confirm: "ゲストを終了して新規登録画面へ進みます。よろしいですか？" } do %>
+                <i class="bi bi-person-plus me-2"></i> 新規登録
+              <% end %>
+            </li>
+          <% else %>
+            <li>
+              <%= link_to dummy_path,
+                          class: "dropdown-item", data: { turbo_frame: "main" } do %>
+                <i class="bi bi-gear me-2"></i> 設定
+              <% end %>
+            </li>
+            <li>
+              <%= link_to destroy_user_session_path(redirect: "sign_in"),
+                          data: { turbo_method: :delete, turbo_frame: "_top",
+                                  turbo_confirm: "ユーザーを切り替えます。よろしいですか？" },
+                          class: "dropdown-item" do %>
+                <i class="bi bi-arrow-left-right me-2"></i> ユーザーを切り替える
+              <% end %>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <%= link_to destroy_user_session_path,
+                          data: { turbo_method: :delete, turbo_frame: "_top",
+                                  turbo_confirm: "ログアウトしますか？" },
+                          class: "dropdown-item text-danger" do %>
+                <i class="bi bi-box-arrow-right me-2"></i> ログアウト
+              <% end %>
+            </li>
+          <% end %>
+        </ul>
+      </div>
+
+    </div>
+  </header>
+
+  <div class="container-fluid">
+    <!-- ★ ヘッダー直下のラッパ。XL以上は固定高＆内部だけスクロール -->
+    <div class="app-shell d-xl-flex">
+
+      <nav id="appSidebar"
+          class="offcanvas offcanvas-start offcanvas-xl border-end app-col"
+          tabindex="-1"
+          aria-labelledby="appSidebarLabel"
+          style="--bs-offcanvas-width: 260px;"
+          data-controller="workspaces--sidebar"
+          data-workspaces--sidebar-frame-value="main"
+          data-workspaces--sidebar-target-value="#appSidebar">
+        <div class="offcanvas-header d-xl-none d-flex align-items-center gap-2">
+          <h5 class="offcanvas-title flex-grow-1 mb-0 text-truncate" id="appSidebarLabel">メニュー</h5>
+          <button type="button" class="btn btn-outline-secondary ms-auto" data-bs-dismiss="offcanvas" aria-label="閉じる">
+            <i class="bi bi-list" aria-hidden="true"></i>
+          </button>
+        </div>
+        <!-- ★ ここは app-col が高さ100%を持つので h-100 を付けておくと安定 -->
+        <div class="offcanvas-body p-0 h-100">
+          <%= render "workspaces/sidebar" %>
+        </div>
+      </nav>
+
+      <main class="flex-grow-1 py-3 app-col">
+        <%= turbo_frame_tag "main", src: dummy_path, loading: "lazy" do %>
+          <div class="p-3 text-muted">読み込み中...</div>
+        <% end %>
+      </main>
+
+      <aside class="d-none d-xxl-block border-start py-3 app-col" style="width: 280px;">
+        <div class="card">
+          <div class="card-body">
+            <div class="text-muted">広告スペース（XXL以上で表示）</div>
+            <div class="ratio ratio-1x1 mt-2 border rounded"></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- ヘッダー高さを CSS 変数に反映（レスポンシブ対応） -->
+  <script type="module">
+    const setHeaderVar = () => {
+      const h = document.getElementById("appHeader")?.offsetHeight || 56;
+      document.documentElement.style.setProperty("--app-header-h", `${h}px`);
+    };
+    addEventListener("resize", setHeaderVar);
+    addEventListener("turbo:load", setHeaderVar);
+    document.readyState === "loading" ? addEventListener("DOMContentLoaded", setHeaderVar) : setHeaderVar();
+  </script>
+  ```
+* `app\views\workspaces\_sidebar.html.erb`
+
+  ```erb
+  <ul class="list-group list-group-flush w-100 me-2">
+    <% menu = [
+      { path: ->{ dummy_path }, icon: "calculator",   label: "積立計算",     roles: [:member, :admin, :guest], turbo: true },
+      { path: ->{ dummy_path }, icon: "filetype-py",  label: "Pythonテスト", roles: [:admin],                  turbo: true },
+      { path: ->{ dummy_path }, icon: "journal-text", label: "お知らせ",     roles: [:member, :admin],         turbo: true },
+      { path: ->{ dummy_path }, icon: "shield-lock",  label: "管理",         roles: [:admin],                  turbo: true }
+    ] %>
+
+    <% roles_now =
+        if current_user&.guest?
+          [:guest]
+        elsif current_user&.admin?
+          [:admin]
+        else
+          [:member]
+        end %>
+
+    <% menu.each do |item| %>
+      <% next unless (item[:roles] & roles_now).any? %>
+      <% link_opts = item[:turbo] ? { data:{ turbo_frame:"main"} } : {} %>
+      <li class="list-group-item">
+        <%= link_to item[:path].call, { class:"mb-2 link-underline link-underline-opacity-0 link-opacity-25-hover fw-medium" }.merge(link_opts) do %>
+          <i class="bi bi-<%= item[:icon] %> fs-4" aria-label="<%= item[:label] %>"></i>
+          <span class="ms-3"><%= item[:label] %></span>
+        <% end %>
+      </li>
     <% end %>
-    ```
+  </ul>
+  ```
 
-* ```app\controllers\dummies_controller.rb```
+* `app\assets\stylesheets\application.scss`：追記
+
+  ```scss
+  @use "components/workspaces";
+  ```
+
+* `app\assets\stylesheets\components\workspaces.scss`
+
+  ```scss
+  /* XL 以上で “カラム独立スクロール & サイドバー静的化” */
+  @media (min-width: 1200px) {
+    /* 1) body をスクロールさせない */
+    html, body { height: 100%; }
+    body { overflow: hidden; }
+
+    /* 2) ヘッダー直下のラッパはビューポート高 - ヘッダー高で固定 */
+    .app-shell {
+      min-height: calc(100dvh - var(--app-header-h, 56px));
+      height:     calc(100dvh - var(--app-header-h, 56px));
+      overflow: hidden; /* ここではスクロールさせない */
+    }
+
+    /* 3) 各カラムが自前でスクロール（＝貼り付き） */
+    .app-col {
+      height: 100%;
+      overflow: auto;
+      overscroll-behavior: contain;
+    }
+
+    /* 4) サイドバーを静的化（offcanvas解除） */
+    #appSidebar.offcanvas-xl {
+      position: static;
+      transform: none !important;
+      visibility: visible !important;
+      display: block !important;
+      width: var(--bs-offcanvas-width, 260px);
+      flex: 0 0 var(--bs-offcanvas-width, 260px);
+      z-index: auto;
+    }
+    #appSidebar .offcanvas-header { display: none !important; }
+  }
+  @media (min-width: 1400px) {
+    .app-ads-col { width: 280px; flex: 0 0 280px; }
+  }
+  ```
+
+* `app\javascript\controllers\workspaces\sidebar_controller.js`
+
+  ```javascript
+  import { Controller } from "@hotwired/stimulus"
+  import { Offcanvas } from "bootstrap"
+
+  /*
+    サイドバー内のリンクをクリックしたら即座にオフキャンバスを閉じる。
+    - XL未満（offcanvas動作中）のみ動く
+    - data-turbo-frame が指定されたリンク（既定: main）のときに閉じる
+    - 既存の遷移は止めない（preventDefaultしない）
+  */
+  export default class extends Controller {
+    static values = {
+      frame: { type: String, default: "main" },      // 対象の Turbo Frame
+      target: { type: String, default: "#appSidebar"} // Offcanvas 要素
+    }
+
+    connect() {
+      this.onClick = this.onClick.bind(this)
+      // サイドバー全体でデリゲート
+      this.element.addEventListener("click", this.onClick, true) // captureにして先に拾う
+    }
+
+    disconnect() {
+      this.element.removeEventListener("click", this.onClick, true)
+    }
+
+    onClick(e) {
+      // クリックされた a[href] を特定
+      const a = e.target.closest("a[href]")
+      if (!a || !this.element.contains(a)) return
+
+      // XL以上は静的サイドバーなので何もしない
+      if (!window.matchMedia("(max-width: 1199.98px)").matches) return
+
+      // data-turbo-frame の判定（既定は this.frameValue）
+      const tf = (a.getAttribute("data-turbo-frame") || "").trim()
+      const willUpdateTargetFrame =
+        tf ? (tf === this.frameValue) : false
+
+      // 「main を更新するリンク」のみ閉じる（必要なら true にすれば全リンクで閉じる）
+      if (!willUpdateTargetFrame) return
+
+      // オフキャンバスを閉じる（表示時のみ）
+      const el = document.querySelector(this.targetValue)
+      if (!el) return
+      const api = Offcanvas.getInstance(el) || new Offcanvas(el)
+      if (el.classList.contains("show")) api.hide()
+    }
+  }
+  ```
+
+* `app\controllers\dummies_controller.rb`
 
     ```ruby
     class DummiesController < ApplicationController
@@ -339,53 +954,13 @@ Rails 8 + Hotwire（Turbo）／Importmap 構成のまま、Devise 本流のネ�
 
 * `app\views\dummies\show.html.erb`
 
-    ```erb
-    <%= turbo_frame_tag "main" do %>
-      <ul>
-        <% if current_user.guest? %>
-          <li>
-            <%= link_to destroy_user_session_path(redirect: "sign_in"),
-                        data: { turbo_method: :delete, turbo_frame: "_top",
-                                turbo_confirm: "ゲストを終了してログイン画面へ進みます。よろしいですか？" },
-                        class: "dropdown-item" do %>
-              <i class="bi bi-arrow-left-right me-2"></i> ログイン
-            <% end %>
-          </li>
-          <li>
-            <%= link_to destroy_user_session_path(redirect: "sign_up"),
-                        class: "dropdown-item",
-                        data: { turbo_method: :delete, turbo_frame: "_top",
-                                turbo_confirm: "ゲストを終了して新規登録画面へ進みます。よろしいですか？" } do %>
-              <i class="bi bi-person-plus me-2"></i> 新規登録
-            <% end %>
-          </li>
-        <% else %>
-          <li>
-            <%= link_to dummy_path,
-                        class: "dropdown-item", data: { turbo_frame: "main" } do %>
-              <i class="bi bi-gear me-2"></i> 設定
-            <% end %>
-          </li>
-          <li>
-            <%= link_to destroy_user_session_path(redirect: "sign_in"),
-                        data: { turbo_method: :delete, turbo_frame: "_top",
-                                turbo_confirm: "ユーザーを切り替えます。よろしいですか？" },
-                        class: "dropdown-item" do %>
-              <i class="bi bi-arrow-left-right me-2"></i> ユーザーを切り替える
-            <% end %>
-          </li>
-          <li>
-            <%= link_to destroy_user_session_path,
-                        data: { turbo_method: :delete, turbo_frame: "_top",
-                                turbo_confirm: "ログアウトしますか？" },
-                        class: "dropdown-item text-danger" do %>
-              <i class="bi bi-box-arrow-right me-2"></i> ログアウト
-            <% end %>
-          </li>
-        <% end %>
-      </ul>
-    <% end %>
-    ```
+  ```erb
+  <%= turbo_frame_tag "main" do %>
+    <h1>Dummies#show</h1>
+    <p>Find me in app/views/dummies/show.html.erb</p>
+    <p>Turbo Frame 内にレンダリングされています。</p>
+  <% end %>
+  ```
 
 * `app\controllers\users\sessions_controller.rb`：新規作成する
 
@@ -407,7 +982,7 @@ Rails 8 + Hotwire（Turbo）／Importmap 構成のまま、Devise 本流のネ�
 
 ---
 
-### 9) メール送信（Confirmable 動作に必須）
+### 11) メール送信設定（Confirmable 動作に必須）
 
 * **開発環境**ではまず **実メール不要** で試すのがおすすめ（例：letter_opener_web）。  
     本番は SMTP を設定。ここでは最小だけ：
@@ -429,10 +1004,10 @@ Rails 8 + Hotwire（Turbo）／Importmap 構成のまま、Devise 本流のネ�
    config.action_mailer.raise_delivery_errors = true
    ```
 
-    `config/initializers/devise.rb`：追記
+    `config/initializers/devise.rb`：追記（本番：開発共通で使用）
 
     ```ruby
-    config.mailer_sender = "no-reply@localhost"
+    config.mailer_sender = "no-reply@dolcos-calc.com"
     ```
 
 * Gemを追加：
@@ -459,7 +1034,6 @@ Rails 8 + Hotwire（Turbo）／Importmap 構成のまま、Devise 本流のネ�
        mount LetterOpenerWeb::Engine, at: "/letter_opener"
      end
    ```
-
 * 反映
 
    ```bash
@@ -467,12 +1041,13 @@ Rails 8 + Hotwire（Turbo）／Importmap 構成のまま、Devise 本流のネ�
    docker compose build app
    docker compose up -d --force-recreate app
    ```
-
-* http://localhost:3000/letter_opener に確認メールが一覧表示され、リンクをクリックすると confirmed_at が埋まります。
+  * メール一覧を見るには、以下にアクセスします。  
+    （http://localhost:3000/letter_opener）  
+    確認メールが一覧表示され、リンクをクリックすると confirmed_at が埋まります。
 
 ---
 
-### 10) Minitest対策
+### 12) Minitest対策
 
 `confirmable` を入れているので、 **テストでは「確認済みユーザーでログイン」** してから `get workspace_url` を叩く。
 * `test/fixtures/users.yml` を作り、固有の email を入れる
@@ -554,66 +1129,6 @@ Rails 8 + Hotwire（Turbo）／Importmap 構成のまま、Devise 本流のネ�
       end
     end
     ```
-
-### 11) 管理者ユーザーの作成
-
-* 初期化ファイル作成
-
-    `config/initializers/admins.rb`
-    ```ruby
-    module AdminConfig
-      module_function
-
-      def admin_emails
-        raw = ENV.fetch("ADMIN_MAIL_ADDRESS_LIST", "")
-        raw.split(",").map { _1.strip.downcase }.reject(&:empty?).uniq
-      end
-
-      def admin?(email)
-        return false if email.blank?
-        admin_emails.include?(email.strip.downcase)
-      end
-    end
-    ```
-
-* Userモデルに“委譲”メソッドを追加
-
-    `app/models/user.rb` に、以下を追記します。
-    ```ruby
-    class User < ApplicationRecord
-      # ...(省略)...
-      # ここだけ追加（環境変数のリストに含まれるかで判定）
-      def admin?
-        AdminConfig.admin?(email)
-      end
-    end
-    ```
-
-* 環境変数の設定
-
-    `.env`を編集する。  
-    例：
-    ```graphql
-    ADMIN_MAIL_ADDRESS_LIST=admin1@example.com,admin2@example.com
-    ```
-
-    * ローカル  
-        `.env`をそのまま編集 ※ **改行コードは LF 推奨**
-
-    * 本番（EC2）  
-        vi等で編集
-        ```bash
-        cd dolcos-calc
-        vi .env
-        ```
-        > **viの基本操作**  
-        >   
-        > * 編集開始：`i` キーを押す（INSERTモードになる）  
-        > * 入力が終わったら `Esc` を押す  
-        > * 保存して終了 → `:wq` → Enter  
-        > * 保存せず終了 → `:q!` → Enter  
-
-        → ビルド
 
 
 ## これでできること

@@ -1321,7 +1321,7 @@ docker-compose -f docker-compose.prod.yml logs -f app
       }
 
       config.action_mailer.default_options = {
-        from: "noreply@dolcos-calc.com"
+        from: "no-reply@dolcos-calc.com"
       }
 
       # 実際に送る
@@ -1347,7 +1347,7 @@ docker-compose -f docker-compose.prod.yml logs -f app
         ```bash
         docker compose -f docker-compose.prod.yml exec app bash -lc '
         RAILS_ENV=production \
-        bundle exec rails r "ActionMailer::Base.mail(from: \"noreply@dolcos-calc.com\", to: \"あなたのメールアドレス\", subject: \"SES test from EC2\", body: \"✅ Amazon SES SMTP test mail from dolcos-calc.com\" ).deliver_now"'
+        bundle exec rails r "ActionMailer::Base.mail(from: \"no-reply@dolcos-calc.com\", to: \"あなたのメールアドレス\", subject: \"SES test from EC2\", body: \"✅ Amazon SES SMTP test mail from dolcos-calc.com\" ).deliver_now"'
         ```
         **サンドボックス解除前なら、**  
         「あなたのメールアドレス」 には **SES で検証済みのメールアドレス**を使ってください  
