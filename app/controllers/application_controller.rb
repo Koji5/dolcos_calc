@@ -16,10 +16,14 @@ class ApplicationController < ActionController::Base
   # 「プリフェッチは無害応答」にする
   def prefetch_request?
     h = request.headers
-    h["Purpose"] == "prefetch" ||
-      h["Sec-Purpose"].to_s.include?("prefetch") ||
-      h["X-Moz"] == "prefetch" ||
-      h["X-Sec-Purpose"].to_s.include?("prefetch")
+    val = ->(k) { h[k].to_s.downcase }
+    val["Purpose"] == "prefetch" ||
+      val["Sec-Purpose"].include?("prefetch") ||
+      val["X-Moz"] == "prefetch" ||
+      val["X-Sec-Purpose"].include?("prefetch") ||
+      val["Purpose"] == "prerender" ||
+      val["Sec-Purpose"].include?("prerender") ||
+      val["X-Sec-Purpose"].include?("prerender")
   end
 
   def block_prefetch
