@@ -16,10 +16,10 @@ class ApplicationController < ActionController::Base
   # 「プリフェッチは無害応答」にする
   def prefetch_request?
     h = request.headers
-    h['Purpose'] == 'prefetch' ||
-      h['Sec-Purpose'].to_s.include?('prefetch') ||
-      h['X-Moz'] == 'prefetch' ||
-      h['X-Sec-Purpose'].to_s.include?('prefetch')
+    h["Purpose"] == "prefetch" ||
+      h["Sec-Purpose"].to_s.include?("prefetch") ||
+      h["X-Moz"] == "prefetch" ||
+      h["X-Sec-Purpose"].to_s.include?("prefetch")
   end
 
   def block_prefetch
@@ -62,5 +62,4 @@ class ApplicationController < ActionController::Base
     f.discard if f.respond_to?(:discard) # 次に持ち越さない
     render turbo_stream: streams
   end
-
 end
